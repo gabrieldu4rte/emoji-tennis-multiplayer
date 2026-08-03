@@ -4,29 +4,111 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Emoji Tennis Online</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎾</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
+        :root {
+            --bg-1: #0b0c2a;
+            --bg-2: #1a1441;
+            --bg-3: #2b1055;
+            --accent-pink: #ff2d78;
+            --accent-orange: #ffb703;
+            --accent-lime: #4dff9e;
+            --accent-blue: #3282b8;
+            --panel: rgba(18, 20, 55, 0.65);
+            --panel-border: rgba(255, 255, 255, 0.12);
+        }
+
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+        html, body { height: 100%; }
+
         body {
-            background-color: #1a1a2e;
+            background: linear-gradient(120deg, var(--bg-1), var(--bg-2), var(--bg-3));
+            background-size: 300% 300%;
+            animation: bgShift 18s ease infinite;
             color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
             overflow: hidden;
+            position: relative;
         }
+
+        @keyframes bgShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Decorative floating emoji particles */
+        .bg-particles {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            overflow: hidden;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .bg-particles span {
+            position: absolute;
+            bottom: -10%;
+            font-size: 2rem;
+            opacity: 0.14;
+            filter: blur(0.3px);
+            animation: floatUp linear infinite;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+            10% { opacity: 0.16; }
+            90% { opacity: 0.12; }
+            100% { transform: translateY(-115vh) rotate(360deg); opacity: 0; }
+        }
+
+        h1 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 1.9rem;
+            margin-bottom: 8px;
+            background: linear-gradient(90deg, var(--accent-lime), var(--accent-blue) 45%, var(--accent-pink));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-align: center;
+            letter-spacing: 0.5px;
+            text-shadow: 0 6px 30px rgba(255, 45, 120, 0.25);
+        }
+
+        h2.subtitle {
+            font-family: 'Poppins', sans-serif;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: #cfd4ff;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        #game-wrapper {
+            position: relative;
+            z-index: 1;
+        }
+
         #game-container {
             position: relative;
             width: 800px;
             height: 500px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-            border-radius: 10px;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.55),
+                0 0 0 1px rgba(255, 255, 255, 0.08),
+                0 0 90px rgba(255, 45, 120, 0.15);
+            border-radius: 18px;
             overflow: hidden;
-            background: #2e7d32;
+            background: #0f3d1a;
         }
+
         .screen {
             position: absolute;
             top: 0;
@@ -37,76 +119,272 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            background: rgba(26, 26, 46, 0.95);
-            transition: opacity 0.3s ease;
+            background:
+                radial-gradient(circle at 50% 0%, rgba(255, 45, 120, 0.12), transparent 55%),
+                linear-gradient(160deg, rgba(11, 12, 42, 0.97), rgba(26, 20, 65, 0.97));
+            transition: opacity 0.35s ease, transform 0.35s ease;
             z-index: 10;
+            padding: 18px;
+            overflow: hidden;
         }
-        .screen.hidden { opacity: 0; pointer-events: none; z-index: -1; }
-        h1 { font-size: 2.5rem; margin-bottom: 20px; color: #4caf50; }
+        .screen.hidden {
+            opacity: 0;
+            transform: scale(0.97);
+            pointer-events: none;
+            z-index: -1;
+        }
+
         .player-setup {
-            background: #162447;
-            padding: 20px;
-            border-radius: 8px;
+            background: var(--panel);
+            backdrop-filter: blur(10px);
+            padding: 14px 24px;
+            border-radius: 16px;
             text-align: center;
-            border: 2px solid #0f4c75;
-            margin-bottom: 20px;
+            border: 1px solid var(--panel-border);
+            margin-bottom: 14px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.35);
         }
+        .player-setup h3 {
+            font-family: 'Poppins', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: #b9c0ff;
+            text-transform: uppercase;
+        }
+
+        #my-selected-emoji-wrap {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            margin: 8px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #my-selected-emoji-wrap::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(77, 255, 158, 0.25), transparent 70%);
+            box-shadow: 0 0 0 2px rgba(77, 255, 158, 0.35), 0 0 25px rgba(77, 255, 158, 0.35);
+            animation: pulseRing 2.2s ease-in-out infinite;
+        }
+        @keyframes pulseRing {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.08); opacity: 0.75; }
+        }
+        #my-selected-emoji { font-size: 2.2rem; position: relative; z-index: 1; }
+
         .emoji-grid {
             display: grid;
             grid-template-columns: repeat(6, 1fr);
-            gap: 10px;
-            margin-top: 15px;
+            gap: 6px;
+            margin-top: 4px;
         }
         .emoji-btn {
-            font-size: 1.8rem;
-            background: #1f4068;
-            border: none;
-            border-radius: 5px;
+            font-size: 1.3rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
             cursor: pointer;
-            padding: 8px;
-            transition: transform 0.1s, background-color 0.2s;
+            padding: 6px;
+            transition: transform 0.15s ease, background-color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
         }
-        .emoji-btn:hover { background: #3282b8; transform: scale(1.1); }
-        .emoji-btn.selected { background: #4caf50; box-shadow: 0 0 10px #4caf50; }
-        .btn-start {
-            padding: 15px 40px;
-            font-size: 1.5rem;
-            background: #e94560;
-            color: white;
+        .emoji-btn:hover {
+            background: rgba(50, 130, 184, 0.35);
+            border-color: rgba(255, 255, 255, 0.25);
+            transform: scale(1.15) translateY(-2px);
+        }
+        .emoji-btn.selected {
+            background: rgba(77, 255, 158, 0.18);
+            border-color: var(--accent-lime);
+            box-shadow: 0 0 16px rgba(77, 255, 158, 0.55);
+            transform: scale(1.08);
+        }
+
+        .btn-start, .btn-secondary {
+            padding: 11px 32px;
+            font-size: 1rem;
+            font-family: 'Poppins', sans-serif;
             border: none;
             border-radius: 30px;
             cursor: pointer;
-            font-weight: bold;
-            box-shadow: 0 5px 15px rgba(233, 69, 96, 0.4);
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+            position: relative;
+            overflow: hidden;
         }
-        canvas { display: block; background: #2e7d32; }
-        #status-text { font-size: 1.5rem; margin-top: 20px; color: #ffbc00; }
+        .btn-start {
+            background: linear-gradient(135deg, var(--accent-pink), var(--accent-orange));
+            color: white;
+            box-shadow: 0 8px 25px rgba(255, 45, 120, 0.45);
+        }
+        .btn-start::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -60%;
+            width: 40%; height: 100%;
+            background: linear-gradient(120deg, transparent, rgba(255,255,255,0.35), transparent);
+            transform: skewX(-20deg);
+            animation: shine 3.2s ease-in-out infinite;
+        }
+        @keyframes shine {
+            0% { left: -60%; }
+            50% { left: 130%; }
+            100% { left: 130%; }
+        }
+        .btn-start:hover, .btn-secondary:hover { transform: translateY(-3px) scale(1.03); filter: brightness(1.08); }
+        .btn-start:active, .btn-secondary:active { transform: translateY(0) scale(0.98); }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.08);
+            color: #e8eaff;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            margin-top: 12px;
+            padding: 8px 24px;
+            font-size: 0.85rem;
+        }
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.16); }
+
+        .hint {
+            margin-top: 10px;
+            font-size: 0.72rem;
+            color: #9aa1d6;
+            letter-spacing: 0.3px;
+        }
+        .hint kbd {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-family: inherit;
+        }
+
+        /* Waiting screen */
+        .radar {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 10px auto 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .radar-ring {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid var(--accent-blue);
+            opacity: 0;
+            animation: radarPulse 2s ease-out infinite;
+        }
+        .radar-ring:nth-child(2) { animation-delay: 0.65s; }
+        .radar-ring:nth-child(3) { animation-delay: 1.3s; }
+        @keyframes radarPulse {
+            0% { width: 20px; height: 20px; opacity: 0.9; }
+            100% { width: 120px; height: 120px; opacity: 0; }
+        }
+        .radar-emoji { font-size: 2.6rem; z-index: 1; animation: spin 3s linear infinite; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        #status-text { font-size: 1.05rem; color: #ffbc00; text-align: center; font-weight: 500; }
+
+        /* Game over screen */
+        .trophy { font-size: 4rem; margin-bottom: 8px; animation: bounce 1.4s ease-in-out infinite; }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-14px); }
+        }
+        #winner-text {
+            font-size: 1.8rem;
+        }
+
+        .confetti-piece {
+            position: absolute;
+            top: -10%;
+            font-size: 1.6rem;
+            will-change: transform;
+            animation: confettiFall linear forwards;
+            z-index: 5;
+            pointer-events: none;
+        }
+        @keyframes confettiFall {
+            0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(560px) rotate(540deg); opacity: 0; }
+        }
+
+        canvas { display: block; }
+
+        #connection-banner {
+            position: absolute;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 10, 30, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #ffbc00;
+            z-index: 6;
+            transition: opacity 0.25s ease;
+        }
+        #connection-banner.hidden { opacity: 0; pointer-events: none; }
+
+        @media (max-width: 860px) {
+            #game-container { transform: scale(0.82); }
+        }
+        @media (max-width: 700px) {
+            #game-container { transform: scale(0.62); }
+            h1 { font-size: 1.9rem; }
+        }
     </style>
 </head>
 <body>
 
-    <div id="game-container">
-        <div id="menu-screen" class="screen">
-            <h1>🎾 Emoji Tennis Online</h1>
-            <div class="player-setup">
-                <h3>Escolha seu Personagem (Emoji)</h3>
-                <div id="my-selected-emoji" style="font-size: 3.5rem; margin: 15px 0;">🦊</div>
-                <div class="emoji-grid" id="emojis-picker"></div>
+    <div class="bg-particles" id="bg-particles"></div>
+
+    <div id="game-wrapper">
+        <div id="game-container">
+            <div id="menu-screen" class="screen">
+                <h1>🎾 Emoji Tennis Online</h1>
+                <h2 class="subtitle">Escolha seu personagem e entre na quadra</h2>
+                <div class="player-setup">
+                    <h3>Seu Personagem</h3>
+                    <div id="my-selected-emoji-wrap">
+                        <div id="my-selected-emoji">🦊</div>
+                    </div>
+                    <div class="emoji-grid" id="emojis-picker"></div>
+                </div>
+                <button class="btn-start" onclick="connectToServer()">🎮 PROCURAR PARTIDA</button>
+                <div class="hint">Mova o paddle com <kbd>W</kbd> / <kbd>S</kbd> ou <kbd>↑</kbd> / <kbd>↓</kbd></div>
             </div>
-            <button class="btn-start" onclick="connectToServer()">PROCURAR PARTIDA</button>
-        </div>
 
-        <div id="waiting-screen" class="screen hidden">
-            <h1>Procurando Oponente...</h1>
-            <div id="status-text">Aguardando outro jogador se conectar...</div>
-        </div>
+            <div id="waiting-screen" class="screen hidden">
+                <h1>Procurando Oponente</h1>
+                <div class="radar">
+                    <div class="radar-ring"></div>
+                    <div class="radar-ring"></div>
+                    <div class="radar-ring"></div>
+                    <div class="radar-emoji">🎾</div>
+                </div>
+                <div id="status-text">Aguardando outro jogador se conectar...</div>
+                <button class="btn-secondary" onclick="backToMenu()">Cancelar</button>
+            </div>
 
-        <div id="game-over-screen" class="screen hidden">
-            <h1 id="winner-text">Jogador 1 Venceu!</h1>
-            <button class="btn-start" onclick="backToMenu()">Voltar ao Menu</button>
-        </div>
+            <div id="game-over-screen" class="screen hidden">
+                <div class="trophy">🏆</div>
+                <h1 id="winner-text">Jogador 1 Venceu!</h1>
+                <button class="btn-start" onclick="backToMenu()">Voltar ao Menu</button>
+            </div>
 
-        <canvas id="gameCanvas" width="800" height="500"></canvas>
+            <div id="connection-banner" class="hidden"></div>
+
+            <canvas id="gameCanvas" width="800" height="500"></canvas>
+        </div>
     </div>
 
     <script>
@@ -118,13 +396,23 @@
         let myEmoji = '🦊';
         let opponentEmoji = '🤖';
 
-        let myRole = ''; 
+        let myRole = '';
         let currentRoomId = '';
         let gameRunning = false;
 
         const paddleWidth = 40;
         const paddleHeight = 60;
         const ballSize = 24;
+        const maxPoints = 5;
+
+        function showBanner(text) {
+            const el = document.getElementById('connection-banner');
+            el.textContent = text;
+            el.classList.remove('hidden');
+        }
+        function hideBanner() {
+            document.getElementById('connection-banner').classList.add('hidden');
+        }
 
         const p1 = { x: 30, y: 220, score: 0, emoji: '🦊' };
         const p2 = { x: 730, y: 220, score: 0, emoji: '🤖' };
@@ -147,6 +435,21 @@
             };
             picker.appendChild(btn);
         });
+
+        // Decorative floating background particles (purely cosmetic)
+        (function spawnParticles() {
+            const container = document.getElementById('bg-particles');
+            const icons = ['🎾', '✨', '⭐', '🎾', '💫'];
+            for (let i = 0; i < 18; i++) {
+                const span = document.createElement('span');
+                span.textContent = icons[Math.floor(Math.random() * icons.length)];
+                span.style.left = Math.random() * 100 + '%';
+                span.style.fontSize = (1.2 + Math.random() * 1.8) + 'rem';
+                span.style.animationDuration = (14 + Math.random() * 16) + 's';
+                span.style.animationDelay = (Math.random() * 20) + 's';
+                container.appendChild(span);
+            }
+        })();
 
         let audioCtx = null;
         function playSound(freq, type = 'sine', duration = 0.1, shouldEmit = false) {
@@ -173,8 +476,19 @@
         function connectToServer() {
             document.getElementById('menu-screen').classList.add('hidden');
             document.getElementById('waiting-screen').classList.remove('hidden');
+            document.getElementById('status-text').innerText = "Conectando ao servidor...";
 
-            socket = io();
+            socket = io({
+                auth: (cb) => cb({ rejoin: currentRoomId && myRole ? { roomId: currentRoomId, role: myRole } : null })
+            });
+
+            socket.on('connect', () => {
+                hideBanner();
+            });
+
+            socket.on('disconnect', () => {
+                if (gameRunning) showBanner('Conexão perdida. Tentando reconectar...');
+            });
 
             socket.on('waiting', () => {
                 document.getElementById('status-text').innerText = "Procurando um oponente disponível...";
@@ -183,14 +497,17 @@
             socket.on('game_start', ({ role, roomId }) => {
                 myRole = role;
                 currentRoomId = roomId;
-                
+
                 socket.emit('choose_emoji', { roomId, role, emoji: myEmoji });
 
                 document.getElementById('waiting-screen').classList.add('hidden');
                 document.getElementById('game-over-screen').classList.add('hidden');
-                
+
                 p1.score = 0;
                 p2.score = 0;
+                lastP1Score = 0;
+                lastP2Score = 0;
+                trail.length = 0;
                 gameRunning = true;
                 loop();
             });
@@ -216,6 +533,38 @@
 
             socket.on('opponent_sound', ({ freq, type, duration }) => {
                 playSound(freq, type, duration, false);
+            });
+
+            socket.on('opponent_disconnected', () => {
+                showBanner('Oponente desconectado. Aguardando reconexão...');
+            });
+
+            socket.on('opponent_reconnected', () => {
+                hideBanner();
+            });
+
+            socket.on('rejoin_ack', ({ p1Emoji, p2Emoji, p1Score, p2Score }) => {
+                p1.emoji = p1Emoji;
+                p2.emoji = p2Emoji;
+                p1.score = p1Score;
+                p2.score = p2Score;
+                hideBanner();
+            });
+
+            socket.on('rejoin_failed', () => {
+                alert("Não foi possível retomar a partida anterior.");
+                backToMenu();
+            });
+
+            socket.on('game_over', ({ winnerRole, p1Score, p2Score }) => {
+                gameRunning = false;
+                p1.score = p1Score;
+                p2.score = p2Score;
+                const winnerLabel = winnerRole === 'p1' ? 'Jogador 1' : 'Jogador 2';
+                const winnerEmoji = winnerRole === 'p1' ? p1.emoji : p2.emoji;
+                document.getElementById('winner-text').innerText = `${winnerLabel} (${winnerEmoji}) Venceu!`;
+                document.getElementById('game-over-screen').classList.remove('hidden');
+                launchConfetti();
             });
 
             socket.on('opponent_left', () => {
@@ -283,13 +632,15 @@
             if (ball.x < 0) {
                 p2.score++;
                 playSound(150, 'sawtooth', 0.3, true);
-                checkGameOver();
                 resetBall(1);
             } else if (ball.x > canvas.width) {
                 p1.score++;
                 playSound(600, 'sine', 0.3, true);
-                checkGameOver();
                 resetBall(-1);
+            }
+
+            if (p1.score >= maxPoints || p2.score >= maxPoints) {
+                gameRunning = false; // a tela de vitória é exibida quando o servidor confirmar via 'game_over'
             }
 
             socket.emit('sync_ball', {
@@ -307,42 +658,146 @@
             ball.speed = 6;
             ball.vx = direction * ball.speed;
             ball.vy = (Math.random() * 2 - 1) * 3;
+            trail.length = 0;
         }
 
-        function checkGameOver() {
-            const maxPoints = 5;
-            if (p1.score >= maxPoints || p2.score >= maxPoints) {
-                gameRunning = false;
-                const winner = p1.score >= maxPoints ? `Jogador 1 (${p1.emoji}) Venceu!` : `Jogador 2 (${p2.emoji}) Venceu!`;
-                document.getElementById('winner-text').innerText = winner;
-                document.getElementById('game-over-screen').classList.remove('hidden');
+        function launchConfetti() {
+            const host = document.getElementById('game-over-screen');
+            const icons = ['🎉', '🎊', '🏆', '⭐', '🎾', '✨'];
+            for (let i = 0; i < 40; i++) {
+                const piece = document.createElement('div');
+                piece.className = 'confetti-piece';
+                piece.textContent = icons[Math.floor(Math.random() * icons.length)];
+                piece.style.left = (5 + Math.random() * 90) + '%';
+                piece.style.animationDuration = (1.6 + Math.random() * 1.6) + 's';
+                piece.style.animationDelay = (Math.random() * 0.6) + 's';
+                host.appendChild(piece);
+                setTimeout(() => piece.remove(), 4000);
             }
         }
 
+        // Visual-only ball trail
+        const trail = [];
+        let lastP1Score = 0, lastP2Score = 0;
+        let p1PopUntil = 0, p2PopUntil = 0;
+        let shakeUntil = 0;
+
         function draw() {
-            ctx.fillStyle = '#2e7d32';
+            // Detect score changes for pop/shake feedback (works for both roles)
+            if (p1.score !== lastP1Score) {
+                lastP1Score = p1.score;
+                p1PopUntil = performance.now() + 350;
+                shakeUntil = performance.now() + 220;
+            }
+            if (p2.score !== lastP2Score) {
+                lastP2Score = p2.score;
+                p2PopUntil = performance.now() + 350;
+                shakeUntil = performance.now() + 220;
+            }
+
+            ctx.save();
+
+            const now = performance.now();
+            if (now < shakeUntil) {
+                const mag = 4 * ((shakeUntil - now) / 220);
+                ctx.translate((Math.random() - 0.5) * mag, (Math.random() - 0.5) * mag);
+            }
+
+            // Court background
+            const courtGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            courtGrad.addColorStop(0, '#1a5c2e');
+            courtGrad.addColorStop(0.5, '#0f3d1a');
+            courtGrad.addColorStop(1, '#0a2e12');
+            ctx.fillStyle = courtGrad;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            // Subtle side vignette
+            const vignette = ctx.createRadialGradient(canvas.width/2, canvas.height/2, 80, canvas.width/2, canvas.height/2, 480);
+            vignette.addColorStop(0, 'rgba(0,0,0,0)');
+            vignette.addColorStop(1, 'rgba(0,0,0,0.35)');
+            ctx.fillStyle = vignette;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Center net
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
             ctx.lineWidth = 4;
-            ctx.setLineDash([10, 10]);
+            ctx.setLineDash([12, 12]);
+            ctx.shadowColor = 'rgba(255,255,255,0.5)';
+            ctx.shadowBlur = 8;
             ctx.beginPath();
             ctx.moveTo(canvas.width / 2, 0);
             ctx.lineTo(canvas.width / 2, canvas.height);
             ctx.stroke();
             ctx.setLineDash([]);
+            ctx.shadowBlur = 0;
 
-            ctx.fillStyle = '#ffffff';
-            ctx.font = 'bold 36px "Segoe UI"';
+            // Scores with pop animation
             ctx.textAlign = 'center';
-            ctx.fillText(p1.score, canvas.width / 4, 50);
-            ctx.fillText(p2.score, (canvas.width / 4) * 3, 50);
+            const p1Scale = now < p1PopUntil ? 1 + 0.4 * ((p1PopUntil - now) / 350) : 1;
+            const p2Scale = now < p2PopUntil ? 1 + 0.4 * ((p2PopUntil - now) / 350) : 1;
 
-            ctx.font = '44px Arial';
-            ctx.fillText(p1.emoji, p1.x + 20, p1.y + 45);
-            ctx.fillText(p2.emoji, p2.x + 20, p2.y + 45);
+            ctx.save();
+            ctx.translate(canvas.width / 4, 46);
+            ctx.scale(p1Scale, p1Scale);
+            ctx.font = 'bold 40px Poppins, "Segoe UI"';
+            ctx.fillStyle = '#4dff9e';
+            ctx.shadowColor = 'rgba(77,255,158,0.6)';
+            ctx.shadowBlur = 14;
+            ctx.fillText(p1.score, 0, 0);
+            ctx.restore();
 
-            ctx.fillText('🎾', ball.x + 12, ball.y + 20);
+            ctx.save();
+            ctx.translate((canvas.width / 4) * 3, 46);
+            ctx.scale(p2Scale, p2Scale);
+            ctx.font = 'bold 40px Poppins, "Segoe UI"';
+            ctx.fillStyle = '#ff6b9d';
+            ctx.shadowColor = 'rgba(255,107,157,0.6)';
+            ctx.shadowBlur = 14;
+            ctx.fillText(p2.score, 0, 0);
+            ctx.restore();
+            ctx.shadowBlur = 0;
+
+            // Ball trail
+            trail.push({ x: ball.x, y: ball.y });
+            if (trail.length > 10) trail.shift();
+            for (let i = 0; i < trail.length; i++) {
+                const t = trail[i];
+                const alpha = (i / trail.length) * 0.35;
+                ctx.beginPath();
+                ctx.fillStyle = `rgba(255, 255, 200, ${alpha})`;
+                ctx.arc(t.x + ballSize / 2, t.y + ballSize / 2, (ballSize / 2) * (i / trail.length), 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Paddle glow badges
+            function drawPaddleBadge(p, color) {
+                const cx = p.x + paddleWidth / 2;
+                const cy = p.y + paddleHeight / 2;
+                const grad = ctx.createRadialGradient(cx, cy, 4, cx, cy, paddleHeight / 1.5);
+                grad.addColorStop(0, color + 'aa');
+                grad.addColorStop(1, color + '00');
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, paddleWidth * 0.9, paddleHeight * 0.75, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.font = '42px Arial';
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 6;
+                ctx.fillText(p.emoji, cx, cy + 15);
+                ctx.shadowBlur = 0;
+            }
+            drawPaddleBadge(p1, '#4dff9e');
+            drawPaddleBadge(p2, '#ff6b9d');
+
+            // Ball
+            ctx.font = '30px Arial';
+            ctx.shadowColor = 'rgba(255, 220, 100, 0.8)';
+            ctx.shadowBlur = 16;
+            ctx.fillText('🎾', ball.x + ballSize / 2, ball.y + ballSize / 2 + 10);
+            ctx.shadowBlur = 0;
+
+            ctx.restore();
         }
 
         function loop() {
@@ -355,12 +810,19 @@
 
         function backToMenu() {
             if (socket) {
+                if (currentRoomId) {
+                    socket.emit('leave_room', { roomId: currentRoomId });
+                }
                 socket.disconnect();
             }
+            myRole = '';
+            currentRoomId = '';
             gameRunning = false;
+            hideBanner();
             document.getElementById('game-over-screen').classList.add('hidden');
             document.getElementById('waiting-screen').classList.add('hidden');
             document.getElementById('menu-screen').classList.remove('hidden');
+            document.querySelectorAll('.confetti-piece').forEach(el => el.remove());
             ctx.clearRect(0, 0, canvas.width, canvas.height);
         }
     </script>
