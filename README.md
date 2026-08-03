@@ -1,92 +1,92 @@
 # Emoji Tennis Online
 
-Jogo multiplayer de tênis em tempo real, no estilo Pong, no qual os jogadores controlam avatares representados por emojis. A partida ocorre entre dois jogadores conectados simultaneamente pela rede, com sincronização de estado via WebSocket.
+A real-time, two-player Pong-style tennis game in which players control avatars represented by emojis. A match takes place between two players connected simultaneously over the network, with state synchronized via WebSocket.
 
-## Visão geral
+## Overview
 
-O projeto é composto por um servidor Node.js responsável pelo pareamento de jogadores e pela retransmissão de eventos de jogo, e por um cliente web que concentra toda a lógica de renderização, física da partida e interface. Não há persistência de dados: partidas, salas e placares existem apenas durante a conexão dos jogadores.
+The project consists of a Node.js server responsible for matchmaking players and validating/relaying gameplay events, and a web client that holds all rendering logic, match physics, and UI. There is no data persistence: matches, rooms, and scores exist only for the duration of the players' connections.
 
-## Funcionalidades
+## Features
 
-- Pareamento automático de dois jogadores em uma sala de jogo.
-- Seleção de personagem entre doze emojis disponíveis.
-- Movimentação de paddle por teclado, com sincronização em tempo real entre os dois clientes.
-- Física de colisão com variação de ângulo e velocidade da bola conforme o ponto de contato com o paddle.
-- Efeitos sonoros gerados via Web Audio API, sincronizados entre os dois jogadores.
-- Placar com limite de cinco pontos e tela de vitória ao final da partida, decidida e confirmada pelo servidor para os dois jogadores.
-- Interface com tema visual próprio, incluindo animações de tela de espera, placar e encerramento de partida.
-- Reconexão automática em caso de queda de conexão durante a partida, com aviso ao oponente e período de tolerância antes de encerrar a sala.
-- Validação server-side dos eventos recebidos dos clientes, incluindo posição de paddle, posição da bola, placar e efeitos sonoros.
+- Automatic matchmaking of two players into a game room.
+- Character selection among twelve available emojis.
+- Keyboard-driven paddle movement, synchronized in real time between the two clients.
+- Collision physics with ball angle and speed varying according to where it hits the paddle.
+- Sound effects generated via the Web Audio API, synchronized between both players.
+- Scoring with a five-point limit and a victory screen at the end of the match, decided and confirmed by the server for both players.
+- A custom visual theme, including animations for the waiting screen, scoreboard, and match end.
+- Automatic reconnection in case of a dropped connection during a match, with a notice to the opponent and a grace period before the room is closed.
+- Server-side validation of events received from clients, including paddle position, ball position, score, and sound effects.
 
-## Tecnologias utilizadas
+## Technologies used
 
 - Node.js
-- Express, para o servidor HTTP e para servir os arquivos estáticos do cliente.
-- Socket.IO, para comunicação em tempo real entre servidor e clientes.
-- HTML5 Canvas, para renderização gráfica do jogo no navegador.
-- Web Audio API, para geração de efeitos sonoros.
+- Express, for the HTTP server and to serve the client's static files.
+- Socket.IO, for real-time communication between server and clients.
+- HTML5 Canvas, for rendering the game graphics in the browser.
+- Web Audio API, for generating sound effects.
 
-## Estrutura do projeto
+## Project structure
 
 ```
 emoji-tennis-multiplayer/
-├── package.json        Dependências e script de inicialização do servidor
-├── server.js            Servidor Express/Socket.IO: pareamento e retransmissão de eventos
+├── package.json        Dependencies and server start script
+├── server.js            Express/Socket.IO server: matchmaking and event relaying
 └── public/
-    └── index.html       Cliente completo: interface, lógica de jogo e comunicação em tempo real
+    └── index.html       Full client: UI, game logic, and real-time communication
 ```
 
-## Requisitos
+## Requirements
 
-- Node.js instalado (recomendado a versão LTS mais recente).
-- npm, distribuído junto com o Node.js.
+- Node.js installed (the latest LTS version is recommended).
+- npm, bundled with Node.js.
 
-## Instalação
+## Installation
 
-Clone o repositório e instale as dependências:
+Clone the repository and install the dependencies:
 
 ```
 npm install
 ```
 
-## Execução
+## Running the project
 
-Para iniciar o servidor:
+To start the server:
 
 ```
 npm start
 ```
 
-Por padrão, o servidor é iniciado na porta 3000. A porta pode ser alterada por meio da variável de ambiente `PORT`.
+By default, the server starts on port 3000. The port can be changed via the `PORT` environment variable.
 
-Após iniciar o servidor, acesse `http://localhost:3000` no navegador. Para jogar uma partida, é necessário abrir o endereço em duas abas, janelas ou dispositivos distintos, simulando os dois jogadores.
+Once the server is running, open `http://localhost:3000` in the browser. To play a match, the address needs to be opened in two separate tabs, windows, or devices, simulating the two players.
 
-## Como jogar
+## How to play
 
-1. Na tela inicial, escolha um personagem entre os emojis disponíveis.
-2. Clique em "Procurar Partida" para entrar na fila de pareamento.
-3. Quando um segundo jogador se conectar, a partida começa automaticamente.
-4. Controle o paddle utilizando as teclas W e S, ou as setas para cima e para baixo.
-5. O primeiro jogador a atingir cinco pontos vence a partida.
+1. On the home screen, choose a character among the available emojis.
+2. Click "Search Match" to enter the matchmaking queue.
+3. Once a second player connects, the match starts automatically.
+4. Control the paddle using the W and S keys, or the up and down arrow keys.
+5. The first player to reach five points wins the match.
 
-## Arquitetura e funcionamento interno
+## Architecture and internal workings
 
-O servidor não simula a física do jogo. Sua responsabilidade se limita a:
+The server does not simulate the game's physics. Its responsibility is limited to:
 
-- Parear o próximo jogador que se conectar com o jogador que já estiver esperando, criando uma sala identificada pela combinação dos identificadores de socket dos dois jogadores. O pareamento é sequencial (apenas um jogador aguarda pareamento por vez), mas isso não limita o número de salas simultâneas: cada par formado gera uma sala independente, e novas duplas continuam sendo pareadas normalmente enquanto partidas anteriores estão em andamento.
-- Validar e retransmitir aos jogadores de uma mesma sala os eventos recebidos: movimentação de paddle, posição da bola, placar e disparo de efeitos sonoros. O servidor confere se o remetente pertence à sala e ao papel (p1 ou p2) que afirma ter, limita a posição do paddle e da bola aos limites da quadra, restringe o emoji escolhido à lista permitida, valida os parâmetros de som e aceita apenas incrementos de placar de um ponto por vez, vindos exclusivamente do jogador que atua como autoridade da física (p1). Ao atingir cinco pontos, o próprio servidor declara o vencedor e notifica os dois jogadores.
-- Gerenciar desconexões: ao perder a conexão com um jogador, o servidor avisa o oponente e mantém a sala reservada por um período de tolerância (20 segundos) antes de encerrá-la, permitindo que o jogador se reconecte e retome a partida do ponto em que estava. Se o jogador sair voluntariamente pelo menu, a sala é encerrada de imediato.
+- Pairing the next connecting player with the player already waiting, creating a room identified by the combination of the two players' socket identifiers. Matchmaking is sequential (only one player waits to be paired at a time), but this does not limit the number of simultaneous rooms: each formed pair spawns an independent room, and new pairs keep being matched normally while earlier matches are still in progress.
+- Validating and relaying events to the players in the same room: paddle movement, ball position, score, and sound effect triggers. The server checks that the sender actually belongs to the room and to the role (p1 or p2) it claims to have, clamps paddle and ball positions to the court boundaries, restricts the chosen emoji to the allowed list, validates sound parameters, and accepts score increments of only one point at a time, coming exclusively from the player acting as the physics authority (p1). Once a score reaches five points, the server itself declares the winner and notifies both players.
+- Handling disconnections: when a player's connection is lost, the server notifies the opponent and keeps the room reserved for a grace period (20 seconds) before closing it, allowing the player to reconnect and resume the match from where it left off. If a player leaves voluntarily through the menu, the room is closed immediately.
 
-A simulação da partida é executada inteiramente no cliente, de forma distribuída entre os dois navegadores:
+The match simulation runs entirely on the client side, distributed across the two browsers:
 
-- O jogador definido como o primeiro da sala é responsável por calcular a física da bola (movimento, colisões e pontuação) e envia essa informação ao oponente a cada quadro.
-- O segundo jogador não simula a bola; apenas exibe os dados recebidos do primeiro jogador.
-- Cada jogador simula localmente o movimento do seu próprio paddle e envia sua posição ao oponente, sem qualquer reconciliação ou correção no lado receptor.
+- The player assigned as the room's first player is responsible for computing the ball physics (movement, collisions, and scoring) and sends that information to the opponent on every frame.
+- The second player does not simulate the ball; it only renders the data received from the first player.
+- Each player simulates their own paddle movement locally and sends its position to the opponent, with no reconciliation or correction on the receiving side.
 
-Essa divisão de responsabilidades implica que a exatidão da física da partida depende inteiramente da conexão do jogador que atua como autoridade da simulação.
+This division of responsibilities means the accuracy of the match physics depends entirely on the connection of the player acting as the simulation authority.
 
-## Limitações conhecidas
+## Known limitations
 
-- A reconexão automática cobre apenas quedas de conexão durante uma partida em andamento, na mesma aba do navegador; se a página for recarregada ou fechada, o estado da partida é perdido e não é possível retomá-la.
-- A validação server-side reduz a superfície de manipulação por um cliente malicioso, mas não elimina o risco por completo: como a física da bola continua sendo calculada no cliente que atua como autoridade (p1), esse jogador ainda pode, dentro dos limites aceitos pelo servidor, enviar posições de bola inconsistentes com uma simulação real.
-- O estado de jogadores e salas é mantido apenas em memória, sendo perdido a cada reinicialização do servidor.
+- Automatic reconnection only covers dropped connections during an ongoing match, within the same browser tab; if the page is reloaded or closed, the match state is lost and cannot be resumed.
+- Server-side validation reduces the attack surface for a malicious client but does not eliminate the risk entirely: since the ball physics are still computed on the client acting as the authority (p1), that player can still, within the limits accepted by the server, send ball positions inconsistent with a real simulation.
+- Player and room state is kept in memory only, and is lost on every server restart.
