@@ -1,0 +1,274 @@
+{
+  "version": 1,
+  "images": {
+    "characters": "characters.png",
+    "portraits": "portraits.png",
+    "ball": "ball.png",
+    "ballBig": "ball_big.png",
+    "fx": "fx.png",
+    "ui": "ui.png",
+    "font": "font.png",
+    "crowd": "crowd.png",
+    "clouds": "clouds.png",
+    "logo": "logo.png",
+    "bg": "bg.png",
+    "arena_grass": "arena_grass.png",
+    "arena_clay": "arena_clay.png",
+    "arena_hard": "arena_hard.png",
+    "arena_night": "arena_night.png"
+  },
+  "characters": {
+    "frameW": 28,
+    "frameH": 23,
+    "anchorX": 12,
+    "feetY": 20,
+    "frames": {
+      "idle": 0,
+      "blink": 1,
+      "run1": 2,
+      "run2": 3,
+      "swing": 4,
+      "cheer": 5
+    },
+    "list": [
+      {
+        "emoji": "🦊",
+        "id": "fox",
+        "name": "Raposa",
+        "color": "#3b7bff"
+      },
+      {
+        "emoji": "🤖",
+        "id": "robot",
+        "name": "Robô",
+        "color": "#ff4d6d"
+      },
+      {
+        "emoji": "🦁",
+        "id": "lion",
+        "name": "Leão",
+        "color": "#7a4cff"
+      },
+      {
+        "emoji": "🐸",
+        "id": "frog",
+        "name": "Sapo",
+        "color": "#ffd23a"
+      },
+      {
+        "emoji": "👽",
+        "id": "alien",
+        "name": "Alien",
+        "color": "#ff7a2f"
+      },
+      {
+        "emoji": "👻",
+        "id": "ghost",
+        "name": "Fantasma",
+        "color": "#35c8ff"
+      },
+      {
+        "emoji": "💀",
+        "id": "skull",
+        "name": "Caveira",
+        "color": "#3d2f6a"
+      },
+      {
+        "emoji": "🤡",
+        "id": "clown",
+        "name": "Palhaço",
+        "color": "#ffe23a"
+      },
+      {
+        "emoji": "🐼",
+        "id": "panda",
+        "name": "Panda",
+        "color": "#2fd07a"
+      },
+      {
+        "emoji": "🐱",
+        "id": "cat",
+        "name": "Gato",
+        "color": "#ff5aa8"
+      },
+      {
+        "emoji": "🦖",
+        "id": "dino",
+        "name": "Dino",
+        "color": "#ff8a2a"
+      },
+      {
+        "emoji": "🦄",
+        "id": "unicorn",
+        "name": "Unicórnio",
+        "color": "#9b5cff"
+      }
+    ]
+  },
+  "portraits": {
+    "w": 16,
+    "h": 14
+  },
+  "ball": {
+    "size": 8,
+    "frames": 8
+  },
+  "ballBig": {
+    "size": 16,
+    "frames": 8
+  },
+  "fx": {
+    "size": 16,
+    "ring": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "starBig": 4,
+    "starSmall": 5,
+    "puff": [
+      6,
+      7,
+      8
+    ],
+    "swoosh": [
+      9,
+      10
+    ],
+    "heart": 11,
+    "drop": 12
+  },
+  "ui": {
+    "scoreboard": [
+      0,
+      0,
+      104,
+      22
+    ],
+    "portraitLeft": [
+      6,
+      4
+    ],
+    "portraitRight": [
+      82,
+      4
+    ],
+    "ledLeft": [
+      26,
+      3,
+      20,
+      12
+    ],
+    "ledRight": [
+      58,
+      3,
+      20,
+      12
+    ],
+    "pipsLeft": [
+      27,
+      16
+    ],
+    "pipsRight": [
+      59,
+      16
+    ],
+    "pipOn": [
+      0,
+      24,
+      3,
+      3
+    ],
+    "pipOff": [
+      4,
+      24,
+      3,
+      3
+    ],
+    "arrow": [
+      8,
+      24,
+      7,
+      6
+    ],
+    "soundOn": [
+      16,
+      24,
+      11,
+      9
+    ],
+    "soundOff": [
+      28,
+      24,
+      11,
+      9
+    ]
+  },
+  "font": {
+    "cellW": 6,
+    "cellH": 10,
+    "top": 2,
+    "glyphH": 7,
+    "chars": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ!?:-.,+/'#x ÁÀÂÃÉÊÍÓÔÕÚÇ"
+  },
+  "crowd": {
+    "frames": 3,
+    "w": 240,
+    "h": 150
+  },
+  "clouds": {
+    "w": 220,
+    "h": 130
+  },
+  "arena": {
+    "w": 240,
+    "h": 150,
+    "field": {
+      "x": 20,
+      "y": 20,
+      "w": 200,
+      "h": 125
+    }
+  },
+  "arenas": [
+    {
+      "id": "grass",
+      "name": "Grama Real",
+      "clouds": true,
+      "night": false
+    },
+    {
+      "id": "clay",
+      "name": "Saibro",
+      "clouds": true,
+      "night": false
+    },
+    {
+      "id": "hard",
+      "name": "Quadra Dura",
+      "clouds": true,
+      "night": false
+    },
+    {
+      "id": "night",
+      "name": "Neon Noturno",
+      "clouds": false,
+      "night": true
+    }
+  ],
+  "sounds": {
+    "hit": "sfx/hit.wav",
+    "wall": "sfx/wall.wav",
+    "point_win": "sfx/point_win.wav",
+    "point_lose": "sfx/point_lose.wav",
+    "crowd": "sfx/crowd.wav",
+    "select": "sfx/select.wav",
+    "count": "sfx/count.wav",
+    "go": "sfx/go.wav",
+    "found": "sfx/found.wav",
+    "victory": "sfx/victory.wav",
+    "defeat": "sfx/defeat.wav",
+    "music": "sfx/music.wav"
+  }
+}

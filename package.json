@@ -4,7 +4,8 @@
   "description": "Jogo de Tênis Online com Emojis",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "assets": "node tools/generate-assets.js"
   },
   "dependencies": {
     "express": "^4.19.2",
