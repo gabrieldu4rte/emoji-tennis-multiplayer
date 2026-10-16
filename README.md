@@ -4,7 +4,7 @@ A real-time, two-player Pong-style tennis game in which players control avatars 
 
 ## Overview
 
-The project consists of a Node.js server responsible for matchmaking players and validating/relaying gameplay events, and a web client that holds all rendering logic, match physics, and UI. There is no data persistence: matches, rooms, and scores exist only for the duration of the players' connections.
+The project consists of a Node.js server responsible for matchmaking players and running the authoritative match simulation, and a web client that holds all rendering logic, local ball prediction, and UI. There is no data persistence: matches, rooms, and scores exist only for the duration of the players' connections.
 
 ## Features
 
@@ -38,7 +38,7 @@ The project consists of a Node.js server responsible for matchmaking players and
 ```
 emoji-tennis-multiplayer/
 ├── package.json             Dependencies and scripts
-├── server.js                Express/Socket.IO server: matchmaking and event relaying
+├── server.js                Express/Socket.IO server: matchmaking and authoritative simulation
 ├── tools/
 │   └── generate-assets.js   Procedural generator for every image and sound
 └── public/
@@ -46,11 +46,12 @@ emoji-tennis-multiplayer/
     ├── css/style.css        Pixel-art UI styles
     ├── assets/              Generated PNGs, WAVs and manifest.json (committed)
     └── js/
+        ├── physics.js       Ball physics shared by the server and the client
         ├── assets.js        Asset loading, sprite and bitmap-text drawing
-        ├── audio.js         Sample playback, music and network sound mapping
+        ├── audio.js         Sample playback and music
         ├── fx.js            Particles, screen shake and floating texts
         ├── render.js        Stadium, players, ball, HUD and screen previews
-        └── main.js          Game logic, physics and real-time communication
+        └── main.js          Game logic, ball prediction and real-time communication
 ```
 
 ## Requirements
@@ -98,24 +99,23 @@ Once the server is running, open `http://localhost:3000` in the browser. To play
 
 ## Architecture and internal workings
 
-The server does not simulate the game's physics. Its responsibility is limited to:
+The server is the authority over the match. Its responsibilities are:
 
 - Pairing the next connecting player with the player already waiting, creating a room identified by the combination of the two players' socket identifiers. Matchmaking is sequential (only one player waits to be paired at a time), but this does not limit the number of simultaneous rooms: each formed pair spawns an independent room, and new pairs keep being matched normally while earlier matches are still in progress.
-- Validating and relaying events to the players in the same room: paddle movement, ball position, score, and sound effect triggers. The server checks that the sender actually belongs to the room and to the role (p1 or p2) it claims to have, clamps paddle and ball positions to the court boundaries, restricts the chosen emoji to the allowed list, validates sound parameters, and accepts score increments of only one point at a time, coming exclusively from the player acting as the physics authority (p1). Once a score reaches five points, the server itself declares the winner and notifies both players.
-- Handling disconnections: when a player's connection is lost, the server notifies the opponent and keeps the room reserved for a grace period (20 seconds) before closing it, allowing the player to reconnect and resume the match from where it left off. If a player leaves voluntarily through the menu, the room is closed immediately.
+- Simulating the ball at a fixed 60 steps per second for every room, using the same `physics.js` module as the client, and deciding hits, points, serves and the winner. Both players are therefore treated equally, regardless of who joined first.
+- Broadcasting state snapshots (ball position and velocity, score, serve time and hit counter, stamped with the simulation time) whenever a hit or point happens, and at least every 100 ms otherwise.
+- Validating player input: the server checks that the sender belongs to the room and to the role it claims, clamps paddle positions to the court and restricts the chosen emoji to the allowed list.
+- Handling disconnections: when a player's connection is lost, the match is paused, the opponent is notified and the room is kept for a grace period (20 seconds). If the player reconnects, the ball is served again after a countdown. If a player leaves voluntarily through the menu, the room is closed immediately.
 
-The match simulation runs entirely on the client side, distributed across the two browsers:
+Network latency is handled on both ends:
 
-- The player assigned as the room's first player is responsible for computing the ball physics (movement, collisions, and scoring) and sends that information to the opponent on every frame.
-- The second player does not simulate the ball; it only renders the data received from the first player.
-- Sound triggers keep the original `{ freq, type, duration }` format; each client maps them to the generated samples and uses them to drive hit/bounce effects on the non-authoritative side.
+- Each client estimates the server clock with periodic ping exchanges and renders the ball at the current server time: from each snapshot it simulates the ball forward locally, including wall bounces and paddle hits, so the ball moves smoothly between snapshots. When a snapshot disagrees with the local prediction, the difference is blended out over a few frames instead of teleporting the ball.
+- Each client moves its own paddle locally and sends its position every frame, stamped with the estimated server time. When the ball reaches a paddle, the server looks up where that player's paddle was at that moment, waiting up to 200 ms for the input to arrive. A hit is decided by what the player saw on their own screen, within that limit.
+- The countdown before each serve is scheduled from the serve time sent by the server, so both players see it at the same moment.
 - The arena is chosen deterministically from the room identifier, so both players see the same stadium without any extra network traffic.
-- Each player simulates their own paddle movement locally and sends its position to the opponent, with no reconciliation or correction on the receiving side.
-
-This division of responsibilities means the accuracy of the match physics depends entirely on the connection of the player acting as the simulation authority.
 
 ## Known limitations
 
 - Automatic reconnection only covers dropped connections during an ongoing match, within the same browser tab; if the page is reloaded or closed, the match state is lost and cannot be resumed.
-- Server-side validation reduces the attack surface for a malicious client but does not eliminate the risk entirely: since the ball physics are still computed on the client acting as the authority (p1), that player can still, within the limits accepted by the server, send ball positions inconsistent with a real simulation.
+- Latency compensation trusts the timestamp of each paddle position within a 200 ms window, so a modified client could reposition its paddle slightly in the past. Players with more than 200 ms of latency get no further compensation and may see the ball pass through their paddle.
 - Player and room state is kept in memory only, and is lost on every server restart.

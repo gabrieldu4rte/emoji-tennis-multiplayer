@@ -58,10 +58,10 @@ const Scene = {
         this.lastScore = { p1: p1.score, p2: p2.score };
     },
 
-    startCountdown(delay = 0) {
+    startCountdown(delay = 0, showMarker = true) {
         const start = performance.now() + delay;
         this.countdown = { start, lastStep: -1 };
-        if (!delay) this.youMarkerUntil = start + COUNTDOWN_MS + 2000;
+        if (showMarker) this.youMarkerUntil = start + COUNTDOWN_MS + 2000;
     },
 
     countdownStep(now) {
@@ -138,8 +138,6 @@ const Scene = {
         let sub = scorer === 'p1' ? 'JOGADOR 1' : 'JOGADOR 2';
         if (mode === 'game') sub = scorer === myRole ? 'SEU PONTO!' : 'PONTO DO OPONENTE';
         this.banner = { text: 'PONTO!', sub, color, start: now, dur: POINT_BANNER_MS };
-
-        if (mode === 'game' && p1.score < maxPoints && p2.score < maxPoints) this.startCountdown(POINT_BANNER_MS);
 
         if (!this.silent) Sound.play('crowd', { volume: 0.6 });
     },

@@ -5,13 +5,6 @@ const NET_SOUNDS = {
     point_p1: { freq: 600, type: 'sine', duration: 0.3 }
 };
 
-function netEventFromSound(freq, type) {
-    for (const [name, s] of Object.entries(NET_SOUNDS)) {
-        if (s.freq === freq && s.type === type) return name;
-    }
-    return null;
-}
-
 const Sound = {
     ctx: null,
     buffers: {},

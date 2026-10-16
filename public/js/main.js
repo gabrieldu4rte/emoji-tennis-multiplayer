@@ -10,33 +10,47 @@ let currentRoomId = '';
 let gameRunning = false;
 let mode = 'demo';
 
-const FIELD_W = 800;
-const FIELD_H = 500;
-const paddleWidth = 40;
-const paddleHeight = 60;
-const ballSize = 24;
-const maxPoints = 5;
-const PADDLE_SPEED = 6;
+const FIELD_W = Physics.FIELD_W;
+const FIELD_H = Physics.FIELD_H;
+const paddleWidth = Physics.PADDLE_W;
+const paddleHeight = Physics.PADDLE_H;
+const ballSize = Physics.BALL_SIZE;
+const maxPoints = Physics.MAX_POINTS;
+const PADDLE_SPEED = Physics.PADDLE_SPEED;
 
-const BALL_START_SPEED = 4;
-const BALL_SPEED_STEP = 0.25;
-const BALL_MAX_SPEED = 12;
-const BALL_INITIAL = { x: 400, y: 250, vx: 3.2, vy: 2.4, speed: BALL_START_SPEED };
+const BALL_INITIAL = { x: 400, y: 250, vx: 3.2, vy: 2.4, speed: Physics.BALL_START_SPEED };
 
-const STEP_MS = 1000 / 60;
+const STEP_MS = Physics.STEP_MS;
 
-const COUNTDOWN_STEP_MS = 650;
-const COUNTDOWN_MS = COUNTDOWN_STEP_MS * 3;
-const SERVE_PAUSE_MS = 900;
-const POINT_BANNER_MS = 1300;
-const POINT_PAUSE_MS = POINT_BANNER_MS + COUNTDOWN_MS;
-const MIN_BOUNCE_ANGLE = Math.PI / 18;
+const COUNTDOWN_STEP_MS = Physics.COUNTDOWN_STEP_MS;
+const COUNTDOWN_MS = Physics.COUNTDOWN_MS;
+const SERVE_PAUSE_MS = Physics.SERVE_PAUSE_MS;
+const POINT_BANNER_MS = Physics.POINT_BANNER_MS;
 
-const p1 = { x: 30, y: 220, score: 0, emoji: '🦊' };
-const p2 = { x: 730, y: 220, score: 0, emoji: '🤖' };
+const SMOOTHING = 0.82;
+const MAX_SMOOTH_ERROR = 120;
+const MAX_RESIM_STEPS = 45;
+const TIME_SYNC_INTERVAL_MS = 2000;
+const TIME_SYNC_SAMPLES = 10;
+
+const p1 = { x: Physics.P1_X, y: 220, score: 0, emoji: '🦊' };
+const p2 = { x: Physics.P2_X, y: 220, score: 0, emoji: '🤖' };
 const ball = { ...BALL_INITIAL };
 
-let physicsHoldUntil = 0;
+const net = {
+    ball: { ...BALL_INITIAL },
+    time: 0,
+    serveAt: Infinity,
+    out: false,
+    error: { x: 0, y: 0 },
+    fxHits: 0,
+    lastServeAt: null,
+    firstServe: true,
+    clockSamples: [],
+    clockOffset: 0,
+    syncTimer: null,
+    myHistory: []
+};
 
 const keys = {};
 window.addEventListener('keydown', e => {
@@ -146,13 +160,122 @@ function gameEventVisual(name) {
     else if (name === 'wall') Scene.onWall();
 }
 
-function triggerGameEvent(name, shouldEmit) {
+function triggerGameEvent(name) {
     playEventSound(name);
     gameEventVisual(name);
-    if (shouldEmit && socket) {
-        const s = NET_SOUNDS[name];
-        socket.emit('sound_trigger', { roomId: currentRoomId, freq: s.freq, type: s.type, duration: s.duration });
+}
+
+function serverNow() {
+    return performance.now() + net.clockOffset;
+}
+
+function sendTimePing() {
+    if (socket && socket.connected) socket.emit('time_ping', performance.now());
+}
+
+function onTimePong({ c, s }) {
+    const arrived = performance.now();
+    net.clockSamples.push({ rtt: arrived - c, offset: s - (c + arrived) / 2 });
+    if (net.clockSamples.length > TIME_SYNC_SAMPLES) net.clockSamples.shift();
+    const best = net.clockSamples.reduce((a, b) => (b.rtt < a.rtt ? b : a));
+    net.clockOffset = best.offset;
+}
+
+function startTimeSync() {
+    clearInterval(net.syncTimer);
+    net.clockSamples = [];
+    for (let i = 0; i < 5; i++) setTimeout(sendTimePing, i * 60);
+    net.syncTimer = setInterval(sendTimePing, TIME_SYNC_INTERVAL_MS);
+}
+
+function myPaddleAt(t) {
+    const h = net.myHistory;
+    for (let i = h.length - 1; i >= 0; i--) {
+        if (h[i].t <= t) return h[i].y;
     }
+    return (myRole === 'p1' ? p1 : p2).y;
+}
+
+function predictedPaddleY(side, t) {
+    if (side === myRole) return myPaddleAt(t);
+    return (side === 'p1' ? p1 : p2).y;
+}
+
+function advanceNetBall(target, live) {
+    net.time = Math.max(net.time, target - MAX_RESIM_STEPS * STEP_MS);
+    while (net.time + STEP_MS <= target) {
+        net.time += STEP_MS;
+        if (net.out || net.time < net.serveAt) continue;
+        const t = net.time;
+        Physics.step(net.ball, side => predictedPaddleY(side, t), (name) => {
+            if (name === 'out') {
+                net.out = true;
+                net.ball.vx = net.ball.vy = 0;
+            } else if (live) {
+                if (name === 'hit') net.fxHits++;
+                triggerGameEvent(name);
+            }
+        });
+    }
+}
+
+function applySnapshot(snap) {
+    const before = { x: ball.x, y: ball.y };
+    const scoredP1 = snap.p1Score > p1.score;
+    const scoredP2 = snap.p2Score > p2.score;
+    if (net.clockSamples.length === 0) net.clockOffset = snap.t - performance.now();
+
+    net.ball = { x: snap.x, y: snap.y, vx: snap.vx, vy: snap.vy, speed: snap.speed };
+    net.time = snap.t;
+    net.serveAt = snap.serveAt;
+    net.out = false;
+    advanceNetBall(serverNow(), false);
+
+    p1.score = snap.p1Score;
+    p2.score = snap.p2Score;
+    if (scoredP1 || scoredP2) {
+        playEventSound(scoredP1 ? 'point_p1' : 'point_p2');
+        net.fxHits = snap.hits;
+    } else if (snap.hits > net.fxHits) {
+        net.fxHits = snap.hits;
+        playEventSound('hit');
+        Scene.onHit(snap.vx > 0 ? 'p1' : 'p2');
+    }
+
+    const ex = before.x - net.ball.x;
+    const ey = before.y - net.ball.y;
+    if (scoredP1 || scoredP2 || Math.hypot(ex, ey) > MAX_SMOOTH_ERROR) {
+        net.error.x = net.error.y = 0;
+    } else {
+        net.error.x = ex;
+        net.error.y = ey;
+    }
+    updateDisplayBall();
+
+    if (snap.serveAt !== net.lastServeAt) {
+        net.lastServeAt = snap.serveAt;
+        const countdownStart = snap.serveAt - COUNTDOWN_MS;
+        if (snap.serveAt > serverNow()) {
+            Scene.startCountdown(countdownStart - serverNow(), net.firstServe);
+        }
+        net.firstServe = false;
+    }
+}
+
+function updateDisplayBall() {
+    ball.x = net.ball.x + net.error.x;
+    ball.y = net.ball.y + net.error.y;
+    ball.vx = net.ball.vx;
+    ball.vy = net.ball.vy;
+}
+
+function updateNetBall() {
+    advanceNetBall(serverNow(), true);
+    net.error.x *= SMOOTHING;
+    net.error.y *= SMOOTHING;
+    if (Math.abs(net.error.x) < 0.1) net.error.x = 0;
+    if (Math.abs(net.error.y) < 0.1) net.error.y = 0;
+    updateDisplayBall();
 }
 
 function connectToServer() {
@@ -162,12 +285,16 @@ function connectToServer() {
     $('status-text').innerText = "Conectando ao servidor...";
 
     socket = io({
+        transports: ['websocket'],
         auth: (cb) => cb({ rejoin: currentRoomId && myRole ? { roomId: currentRoomId, role: myRole } : null })
     });
 
     socket.on('connect', () => {
         hideBanner();
+        startTimeSync();
     });
+
+    socket.on('time_pong', onTimePong);
 
     socket.on('disconnect', () => {
         if (gameRunning) showBanner('Conexão perdida. Tentando reconectar...');
@@ -192,14 +319,20 @@ function connectToServer() {
         p1.emoji = role === 'p1' ? myEmoji : '🦊';
         p2.emoji = role === 'p2' ? myEmoji : '🤖';
         Object.assign(ball, BALL_INITIAL);
+        net.ball = { ...BALL_INITIAL };
+        net.serveAt = Infinity;
+        net.out = false;
+        net.error.x = net.error.y = 0;
+        net.fxHits = 0;
+        net.lastServeAt = null;
+        net.firstServe = true;
+        net.myHistory = [];
 
         mode = 'game';
         Scene.silent = false;
         Scene.showHud = true;
         Scene.setArena(hashString(roomId));
         Scene.reset();
-        Scene.startCountdown();
-        physicsHoldUntil = performance.now() + COUNTDOWN_MS;
         Sound.play('found');
         Sound.setMusicVolume(0.16);
         gameRunning = true;
@@ -215,23 +348,8 @@ function connectToServer() {
         else p1.y = y;
     });
 
-    socket.on('ball_update', ({ x, y, p1Score, p2Score }) => {
-        if (myRole === 'p2') {
-            ball.x = x;
-            ball.y = y;
-            p1.score = p1Score;
-            p2.score = p2Score;
-        }
-    });
-
-    socket.on('opponent_sound', ({ freq, type, duration }) => {
-        const name = netEventFromSound(freq, type);
-        if (name) {
-            playEventSound(name);
-            gameEventVisual(name);
-        } else {
-            Sound.beep(freq, type, duration);
-        }
+    socket.on('state', (snap) => {
+        if (mode === 'game') applySnapshot(snap);
     });
 
     socket.on('opponent_disconnected', () => {
@@ -291,126 +409,33 @@ function hashString(s) {
 
 function moveLocalPaddle() {
     const myPaddle = myRole === 'p1' ? p1 : p2;
-    let moved = false;
     const up = keys['w'] || keys['W'] || keys['ArrowUp'];
     const down = keys['s'] || keys['S'] || keys['ArrowDown'];
 
     if (up) {
         myPaddle.y = Math.max(0, myPaddle.y - PADDLE_SPEED);
-        moved = true;
     }
     if (down) {
         myPaddle.y = Math.min(FIELD_H - paddleHeight, myPaddle.y + PADDLE_SPEED);
-        moved = true;
     }
     if (!up && !down && pointerTargetY !== null) {
         const diff = Math.max(-PADDLE_SPEED, Math.min(PADDLE_SPEED, pointerTargetY - myPaddle.y));
         if (Math.abs(diff) >= 1) {
             myPaddle.y = Math.max(0, Math.min(FIELD_H - paddleHeight, myPaddle.y + diff));
-            moved = true;
-        }
+            }
     }
 
-    if (moved && socket) {
-        socket.emit('move_paddle', { roomId: currentRoomId, y: myPaddle.y });
-    }
-}
+    const t = serverNow();
+    net.myHistory.push({ t, y: myPaddle.y });
+    if (net.myHistory.length > 90) net.myHistory.shift();
 
-function stepBall(onEvent) {
-    ball.x += ball.vx;
-    ball.y += ball.vy;
-
-    if (ball.y <= 0) {
-        ball.y = 0;
-        ball.vy = Math.max(Math.abs(ball.vy), minVerticalSpeed());
-        onEvent('wall');
-    } else if (ball.y >= FIELD_H - ballSize) {
-        ball.y = FIELD_H - ballSize;
-        ball.vy = -Math.max(Math.abs(ball.vy), minVerticalSpeed());
-        onEvent('wall');
-    }
-
-    if (ball.vx < 0 && ball.x <= p1.x + paddleWidth && ball.x >= p1.x) {
-        if (ball.y + ballSize >= p1.y && ball.y <= p1.y + paddleHeight) {
-            let collidePoint = (ball.y + ballSize / 2) - (p1.y + paddleHeight / 2);
-            collidePoint = collidePoint / (paddleHeight / 2);
-            const angleRad = bounceAngle(collidePoint);
-
-            ball.speed = Math.min(BALL_MAX_SPEED, ball.speed + BALL_SPEED_STEP);
-            ball.vx = Math.cos(angleRad) * ball.speed;
-            ball.vy = Math.sin(angleRad) * ball.speed;
-            onEvent('hit');
-        }
-    }
-
-    if (ball.vx > 0 && ball.x + ballSize >= p2.x && ball.x <= p2.x + paddleWidth) {
-        if (ball.y + ballSize >= p2.y && ball.y <= p2.y + paddleHeight) {
-            let collidePoint = (ball.y + ballSize / 2) - (p2.y + paddleHeight / 2);
-            collidePoint = collidePoint / (paddleHeight / 2);
-            const angleRad = bounceAngle(collidePoint);
-
-            ball.speed = Math.min(BALL_MAX_SPEED, ball.speed + BALL_SPEED_STEP);
-            ball.vx = -Math.cos(angleRad) * ball.speed;
-            ball.vy = Math.sin(angleRad) * ball.speed;
-            onEvent('hit');
-        }
-    }
-
-    if (ball.x < 0) {
-        p2.score++;
-        onEvent('point_p2');
-        resetBall(1);
-    } else if (ball.x > FIELD_W) {
-        p1.score++;
-        onEvent('point_p1');
-        resetBall(-1);
+    if (socket && socket.connected) {
+        socket.emit('move_paddle', { roomId: currentRoomId, y: myPaddle.y, t });
     }
 }
 
-function updatePhysics() {
-    if (myRole !== 'p1') return;
-
-    if (performance.now() >= physicsHoldUntil) {
-        stepBall(name => {
-            triggerGameEvent(name, true);
-            if (name === 'point_p1' || name === 'point_p2') physicsHoldUntil = performance.now() + POINT_PAUSE_MS;
-        });
-    }
-
-    if (p1.score >= maxPoints || p2.score >= maxPoints) {
-        gameRunning = false;
-    }
-
-    socket.emit('sync_ball', {
-        roomId: currentRoomId,
-        x: ball.x,
-        y: ball.y,
-        p1Score: p1.score,
-        p2Score: p2.score
-    });
-}
-
-function minVerticalSpeed() {
-    return Math.sin(MIN_BOUNCE_ANGLE) * ball.speed;
-}
-
-function bounceAngle(collidePoint) {
-    const c = Math.max(-1, Math.min(1, collidePoint));
-    let angle = (Math.PI / 4) * c;
-    if (Math.abs(angle) < MIN_BOUNCE_ANGLE) {
-        let dir = Math.sign(c);
-        if (dir === 0) dir = ball.y + ballSize / 2 < FIELD_H / 2 ? 1 : -1;
-        angle = dir * MIN_BOUNCE_ANGLE;
-    }
-    return angle;
-}
-
-function resetBall(direction) {
-    ball.x = FIELD_W / 2;
-    ball.y = FIELD_H / 2;
-    ball.speed = BALL_START_SPEED;
-    ball.vx = direction * ball.speed;
-    ball.vy = (Math.random() * 2 - 1) * 2;
+function demoPaddleY(side) {
+    return (side === 'p1' ? p1 : p2).y;
 }
 
 const demoAI = { p1: { offset: 0 }, p2: { offset: 0 } };
@@ -440,14 +465,20 @@ function updateDemo(now) {
         p.y = Math.max(0, Math.min(FIELD_H - paddleHeight, p.y));
     }
     if (now < demoHoldUntil) return;
-    stepBall(name => {
+    Physics.step(ball, demoPaddleY, (name, side) => {
+        if (name === 'out') {
+            if (side === 'p1') p1.score++;
+            else p2.score++;
+            Physics.serveBall(ball, side === 'p1' ? -1 : 1, (Math.random() * 2 - 1) * 2);
+            demoHoldUntil = now + SERVE_PAUSE_MS + 400;
+            return;
+        }
         gameEventVisual(name);
         if (name === 'hit') {
             demoAI.p1.offset = (Math.random() - 0.5) * 50;
             demoAI.p2.offset = (Math.random() - 0.5) * 50;
             if (ball.speed > 9) demoAI[ball.vx > 0 ? 'p2' : 'p1'].offset = (Math.random() < 0.5 ? -1 : 1) * 70;
         }
-        if (name === 'point_p1' || name === 'point_p2') demoHoldUntil = now + SERVE_PAUSE_MS + 400;
     });
     if (p1.score >= maxPoints || p2.score >= maxPoints) {
         p1.score = 0;
@@ -465,7 +496,7 @@ function tick(now) {
     if (mode === 'game') {
         if (gameRunning) {
             moveLocalPaddle();
-            updatePhysics();
+            updateNetBall();
         }
     } else {
         updateDemo(now);
@@ -498,6 +529,7 @@ function backToMenu() {
         }
         socket.disconnect();
     }
+    clearInterval(net.syncTimer);
     myRole = '';
     currentRoomId = '';
     gameRunning = false;
