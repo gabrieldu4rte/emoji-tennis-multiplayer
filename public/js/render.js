@@ -1,12 +1,9 @@
-// Renderização da cena: arena, público, personagens, bola, efeitos e HUD.
-// A física continua em coordenadas de quadra (800x500); aqui elas são
-// deslocadas para dentro do estádio, que ocupa a tela inteira (960x600).
 const VIEW_W = 960, VIEW_H = 600;
 const FIELD_X = 80, FIELD_Y = 80;
-const WORLD_SCALE = 4;   // escala dos cenários (240x150 -> 960x600)
-const SPRITE_SCALE = 3;  // escala dos personagens, bola e efeitos
+const WORLD_SCALE = 4;
+const SPRITE_SCALE = 3;
 
-const FAST_BALL = 7; // a partir daqui a bola ganha rastro de fogo
+const FAST_BALL = 7;
 const PLAYER_COLORS = { p1: '#4dff9e', p2: '#ff6b9d' };
 const DUST_COLORS = {
     grass: ['#2f7d2f', '#6ab85a', '#8fd07a'],
@@ -21,7 +18,7 @@ function makeAnim() {
 
 const Scene = {
     arena: null,
-    silent: true,        // sem sons (modo demonstração)
+    silent: true,
     showHud: false,
     anim: { p1: makeAnim(), p2: makeAnim() },
     trail: [],
@@ -33,7 +30,7 @@ const Scene = {
     rally: 0,
     crowdCheerUntil: 0,
     camFlashes: [],
-    countdown: null,     // { start, lastStep }
+    countdown: null,
     banner: null,
     winner: null,
     youMarkerUntil: 0,
@@ -57,14 +54,14 @@ const Scene = {
         FX.clear();
     },
 
-    // evita comemorar quando o placar é restaurado (ex.: reconexão)
     syncScores() {
         this.lastScore = { p1: p1.score, p2: p2.score };
     },
 
-    startCountdown() {
-        this.countdown = { start: performance.now(), lastStep: -1 };
-        this.youMarkerUntil = performance.now() + COUNTDOWN_MS + 2000;
+    startCountdown(delay = 0) {
+        const start = performance.now() + delay;
+        this.countdown = { start, lastStep: -1 };
+        if (!delay) this.youMarkerUntil = start + COUNTDOWN_MS + 2000;
     },
 
     countdownStep(now) {
@@ -73,7 +70,6 @@ const Scene = {
         return step > 3 ? -1 : step;
     },
 
-    // ---- eventos de jogo (chamados pela lógica / rede) ----
     onHit(side) {
         const now = performance.now();
         const a = this.anim[side];
@@ -141,7 +137,9 @@ const Scene = {
 
         let sub = scorer === 'p1' ? 'JOGADOR 1' : 'JOGADOR 2';
         if (mode === 'game') sub = scorer === myRole ? 'SEU PONTO!' : 'PONTO DO OPONENTE';
-        this.banner = { text: 'PONTO!', sub, color, start: now, dur: 1300 };
+        this.banner = { text: 'PONTO!', sub, color, start: now, dur: POINT_BANNER_MS };
+
+        if (mode === 'game' && p1.score < maxPoints && p2.score < maxPoints) this.startCountdown(POINT_BANNER_MS);
 
         if (!this.silent) Sound.play('crowd', { volume: 0.6 });
     },
@@ -150,9 +148,9 @@ const Scene = {
         this.winner = role;
         this.crowdCheerUntil = Infinity;
         this.banner = null;
+        this.countdown = null;
     },
 
-    // ---- atualização por frame ----
     update(now) {
         const dx = ball.x - this.lastBall.x, dy = ball.y - this.lastBall.y;
         const dist = Math.hypot(dx, dy);
@@ -172,7 +170,6 @@ const Scene = {
         if (this.trail.length > 9) this.trail.shift();
         this.lastBall = { x: ball.x, y: ball.y };
 
-        // rastro de fogo quando a bola está rápida
         if (this.ballSpeed > FAST_BALL && !jumped && dist > 0.5) {
             const bx = FIELD_X + ball.x + ballSize / 2, by = FIELD_Y + ball.y + ballSize / 2;
             for (let i = 0; i < 2; i++) {
@@ -184,7 +181,6 @@ const Scene = {
             }
         }
 
-        // animação de corrida + poeira dos passos
         for (const side of ['p1', 'p2']) {
             const p = side === 'p1' ? p1 : p2;
             const a = this.anim[side];
@@ -201,7 +197,6 @@ const Scene = {
             a.lastY = p.y;
         }
 
-        // flashes de câmera na arquibancada
         const flashChance = (now < this.crowdCheerUntil ? 0.35 : 0.03) * (this.arena.night ? 1.6 : 1);
         if (Math.random() < flashChance) {
             const top = Math.random() < 0.6;
@@ -213,7 +208,6 @@ const Scene = {
         }
         this.camFlashes = this.camFlashes.filter(f => --f.life > 0);
 
-        // contagem regressiva
         if (this.countdown) {
             const step = this.countdownStep(now);
             if (step !== this.countdown.lastStep && step >= 0) {
@@ -223,7 +217,6 @@ const Scene = {
             if (step < 0 && now - this.countdown.start > COUNTDOWN_STEP_MS * 4) this.countdown = null;
         }
 
-        // comemoração contínua no fim de jogo
         if (this.winner && now > this.nextConfetti) {
             this.nextConfetti = now + 350;
             FX.confetti(FIELD_X + Math.random() * FIELD_W, FIELD_Y - 10, 14);
@@ -232,7 +225,6 @@ const Scene = {
         FX.update();
     },
 
-    // ---- desenho ----
     draw(ctx, now) {
         ctx.imageSmoothingEnabled = false;
         ctx.fillStyle = '#100c24';
@@ -251,7 +243,6 @@ const Scene = {
         this.drawPlayerGround(ctx, p2, 'p2');
         this.drawBallShadow(ctx);
 
-        // quem está mais abaixo é desenhado por cima
         const order = p1.y <= p2.y ? [[p1, 'p1'], [p2, 'p2']] : [[p2, 'p2'], [p1, 'p1']];
         for (const [p, side] of order) this.drawPlayer(ctx, p, side, now);
 
@@ -316,7 +307,6 @@ const Scene = {
             ctx.fillStyle = g;
             ctx.fillRect(0, 0, VIEW_W, VIEW_H);
         }
-        // brilho neon em volta da bola
         const bx = FIELD_X + ball.x + ballSize / 2, by = FIELD_Y + ball.y + ballSize / 2;
         const g = ctx.createRadialGradient(bx, by, 4, bx, by, 60);
         g.addColorStop(0, 'rgba(220, 255, 120, 0.25)');
@@ -335,7 +325,6 @@ const Scene = {
         ctx.rect(cx - 12, feet - 9, 24, 12);
         ctx.fill();
         if (mode !== 'game') return;
-        // anel colorido indicando o jogador
         ctx.fillStyle = PLAYER_COLORS[side];
         ctx.globalAlpha = side === myRole ? 0.85 : 0.45;
         const rx = 24, ry = 9;
@@ -375,7 +364,6 @@ const Scene = {
         }
         Assets.drawCharacter(ctx, p.emoji, pose, cx, feet + dy, SPRITE_SCALE, side === 'p2');
 
-        // seta "VOCÊ" sobre o jogador local no começo da partida
         if (mode === 'game' && side === myRole && now < this.youMarkerUntil) {
             const bob = Math.floor(now / 200) % 2 ? 3 : 0;
             const top = feet - 66 - 30 + bob;
@@ -385,7 +373,6 @@ const Scene = {
     },
 
     drawBallShadow(ctx) {
-        // a bola "sobe" no meio da quadra: a sombra se afasta e encolhe
         const t = Math.max(0, Math.min(1, (ball.x - 70) / (FIELD_W - 140 - ballSize)));
         const h = Math.sin(Math.PI * t);
         const cx = FIELD_X + ball.x + ballSize / 2 + 4 + h * 10;
@@ -494,7 +481,6 @@ const Scene = {
     }
 };
 
-// pequenos canvases de prévia (menu, espera e vitória)
 const Preview = {
     drawPedestal(ctx, cx, y, w, color) {
         ctx.fillStyle = 'rgba(10, 0, 30, 0.35)';
@@ -510,7 +496,6 @@ const Preview = {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const cx = canvas.width / 2 - 8, feet = canvas.height - 18;
         this.drawPedestal(ctx, cx + 8, feet, 120, Assets.charInfo(emoji).color);
-        // ciclo: parado, corre, rebate
         const t = now % 4000;
         let pose = 'idle', dy = 0;
         if (t < 1600) { pose = t % 1600 > 1450 ? 'blink' : 'idle'; dy = Math.floor(now / 500) % 2 ? -4 : 0; }
@@ -533,7 +518,6 @@ const Preview = {
         ctx.fillStyle = 'rgba(10, 0, 30, 0.35)';
         ctx.fillRect(cx - 27, feet - 6, 54, 9);
         Assets.drawCharacter(ctx, emoji, tick ? 'run1' : 'run2', cx, feet + (tick ? -4 : 0), 4);
-        // bolinha quicando sobre a cabeça
         const k = (now % 700) / 700;
         const by = feet - 100 - Math.sin(k * Math.PI) * 50;
         Assets.drawBall(ctx, Math.floor(now / 50), cx + 30, by, 3);

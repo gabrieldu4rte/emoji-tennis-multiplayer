@@ -1,6 +1,3 @@
-// Lógica do jogo e comunicação em tempo real.
-// O protocolo com o servidor é o mesmo da versão original: mesmos eventos,
-// mesmos payloads, p1 continua sendo a autoridade da física da bola.
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 let socket;
@@ -11,9 +8,8 @@ let myEmoji = '🦊';
 let myRole = '';
 let currentRoomId = '';
 let gameRunning = false;
-let mode = 'demo'; // 'demo' (partida de exibição atrás do menu) ou 'game'
+let mode = 'demo';
 
-// dimensões da quadra (coordenadas da física, iguais às do servidor)
 const FIELD_W = 800;
 const FIELD_H = 500;
 const paddleWidth = 40;
@@ -22,25 +18,25 @@ const ballSize = 24;
 const maxPoints = 5;
 const PADDLE_SPEED = 6;
 
-// velocidade da bola: começa lenta e acelera um pouco a cada rebatida
 const BALL_START_SPEED = 4;
 const BALL_SPEED_STEP = 0.25;
 const BALL_MAX_SPEED = 12;
 const BALL_INITIAL = { x: 400, y: 250, vx: 3.2, vy: 2.4, speed: BALL_START_SPEED };
 
-// a física roda em passo fixo (60x por segundo), independente da taxa de
-// atualização do monitor; antes, em telas de 120/144 Hz a bola ficava 2x mais rápida
 const STEP_MS = 1000 / 60;
 
 const COUNTDOWN_STEP_MS = 650;
-const COUNTDOWN_MS = COUNTDOWN_STEP_MS * 3; // a bola sai no "JÁ!"
+const COUNTDOWN_MS = COUNTDOWN_STEP_MS * 3;
 const SERVE_PAUSE_MS = 900;
+const POINT_BANNER_MS = 1300;
+const POINT_PAUSE_MS = POINT_BANNER_MS + COUNTDOWN_MS;
+const MIN_BOUNCE_ANGLE = Math.PI / 18;
 
 const p1 = { x: 30, y: 220, score: 0, emoji: '🦊' };
 const p2 = { x: 730, y: 220, score: 0, emoji: '🤖' };
 const ball = { ...BALL_INITIAL };
 
-let physicsHoldUntil = 0; // pausa da bola (contagem inicial / após ponto), só na autoridade
+let physicsHoldUntil = 0;
 
 const keys = {};
 window.addEventListener('keydown', e => {
@@ -50,9 +46,6 @@ window.addEventListener('keydown', e => {
 window.addEventListener('keyup', e => keys[e.key] = false);
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
-// ---------------------------------------------------------------------------
-// Interface
-// ---------------------------------------------------------------------------
 const $ = id => document.getElementById(id);
 
 function showScreen(id) {
@@ -126,7 +119,6 @@ function fitToScreen() {
 }
 window.addEventListener('resize', fitToScreen);
 
-// controle por toque/arrasto: o personagem segue o dedo na mesma velocidade do teclado
 let pointerTargetY = null;
 function pointerToField(e) {
     const rect = canvas.getBoundingClientRect();
@@ -137,9 +129,6 @@ canvas.addEventListener('pointermove', e => { if (pointerTargetY !== null) point
 window.addEventListener('pointerup', () => { pointerTargetY = null; });
 window.addEventListener('pointercancel', () => { pointerTargetY = null; });
 
-// ---------------------------------------------------------------------------
-// Sons de jogo (mesmo formato de evento de rede de antes)
-// ---------------------------------------------------------------------------
 function playEventSound(name) {
     let sample = name;
     if (name === 'point_p1' || name === 'point_p2') {
@@ -157,7 +146,6 @@ function gameEventVisual(name) {
     else if (name === 'wall') Scene.onWall();
 }
 
-// substitui o antigo playSound(freq, type, duration, shouldEmit) da física
 function triggerGameEvent(name, shouldEmit) {
     playEventSound(name);
     gameEventVisual(name);
@@ -167,9 +155,6 @@ function triggerGameEvent(name, shouldEmit) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Rede
-// ---------------------------------------------------------------------------
 function connectToServer() {
     Sound.unlock();
     Sound.startMusic();
@@ -200,7 +185,6 @@ function connectToServer() {
 
         showScreen(null);
 
-        // estado inicial da partida (idêntico ao original)
         p1.score = 0;
         p2.score = 0;
         p1.y = 220;
@@ -305,9 +289,6 @@ function hashString(s) {
     return h;
 }
 
-// ---------------------------------------------------------------------------
-// Movimento e física (mesmas regras da versão original)
-// ---------------------------------------------------------------------------
 function moveLocalPaddle() {
     const myPaddle = myRole === 'p1' ? p1 : p2;
     let moved = false;
@@ -335,13 +316,17 @@ function moveLocalPaddle() {
     }
 }
 
-// um passo da simulação da bola; onEvent recebe 'wall' | 'hit' | 'point_p1' | 'point_p2'
 function stepBall(onEvent) {
     ball.x += ball.vx;
     ball.y += ball.vy;
 
-    if (ball.y <= 0 || ball.y >= FIELD_H - ballSize) {
-        ball.vy = -ball.vy;
+    if (ball.y <= 0) {
+        ball.y = 0;
+        ball.vy = Math.max(Math.abs(ball.vy), minVerticalSpeed());
+        onEvent('wall');
+    } else if (ball.y >= FIELD_H - ballSize) {
+        ball.y = FIELD_H - ballSize;
+        ball.vy = -Math.max(Math.abs(ball.vy), minVerticalSpeed());
         onEvent('wall');
     }
 
@@ -349,7 +334,7 @@ function stepBall(onEvent) {
         if (ball.y + ballSize >= p1.y && ball.y <= p1.y + paddleHeight) {
             let collidePoint = (ball.y + ballSize / 2) - (p1.y + paddleHeight / 2);
             collidePoint = collidePoint / (paddleHeight / 2);
-            const angleRad = (Math.PI / 4) * collidePoint;
+            const angleRad = bounceAngle(collidePoint);
 
             ball.speed = Math.min(BALL_MAX_SPEED, ball.speed + BALL_SPEED_STEP);
             ball.vx = Math.cos(angleRad) * ball.speed;
@@ -362,7 +347,7 @@ function stepBall(onEvent) {
         if (ball.y + ballSize >= p2.y && ball.y <= p2.y + paddleHeight) {
             let collidePoint = (ball.y + ballSize / 2) - (p2.y + paddleHeight / 2);
             collidePoint = collidePoint / (paddleHeight / 2);
-            const angleRad = (Math.PI / 4) * collidePoint;
+            const angleRad = bounceAngle(collidePoint);
 
             ball.speed = Math.min(BALL_MAX_SPEED, ball.speed + BALL_SPEED_STEP);
             ball.vx = -Math.cos(angleRad) * ball.speed;
@@ -388,12 +373,12 @@ function updatePhysics() {
     if (performance.now() >= physicsHoldUntil) {
         stepBall(name => {
             triggerGameEvent(name, true);
-            if (name === 'point_p1' || name === 'point_p2') physicsHoldUntil = performance.now() + SERVE_PAUSE_MS;
+            if (name === 'point_p1' || name === 'point_p2') physicsHoldUntil = performance.now() + POINT_PAUSE_MS;
         });
     }
 
     if (p1.score >= maxPoints || p2.score >= maxPoints) {
-        gameRunning = false; // a tela de vitória é exibida quando o servidor confirmar via 'game_over'
+        gameRunning = false;
     }
 
     socket.emit('sync_ball', {
@@ -405,6 +390,21 @@ function updatePhysics() {
     });
 }
 
+function minVerticalSpeed() {
+    return Math.sin(MIN_BOUNCE_ANGLE) * ball.speed;
+}
+
+function bounceAngle(collidePoint) {
+    const c = Math.max(-1, Math.min(1, collidePoint));
+    let angle = (Math.PI / 4) * c;
+    if (Math.abs(angle) < MIN_BOUNCE_ANGLE) {
+        let dir = Math.sign(c);
+        if (dir === 0) dir = ball.y + ballSize / 2 < FIELD_H / 2 ? 1 : -1;
+        angle = dir * MIN_BOUNCE_ANGLE;
+    }
+    return angle;
+}
+
 function resetBall(direction) {
     ball.x = FIELD_W / 2;
     ball.y = FIELD_H / 2;
@@ -413,9 +413,6 @@ function resetBall(direction) {
     ball.vy = (Math.random() * 2 - 1) * 2;
 }
 
-// ---------------------------------------------------------------------------
-// Modo demonstração: dois bots jogando atrás do menu (apenas local, sem rede)
-// ---------------------------------------------------------------------------
 const demoAI = { p1: { offset: 0 }, p2: { offset: 0 } };
 let demoHoldUntil = 0;
 
@@ -446,7 +443,6 @@ function updateDemo(now) {
     stepBall(name => {
         gameEventVisual(name);
         if (name === 'hit') {
-            // varia o ponto de contato para a troca de bolas ficar interessante
             demoAI.p1.offset = (Math.random() - 0.5) * 50;
             demoAI.p2.offset = (Math.random() - 0.5) * 50;
             if (ball.speed > 9) demoAI[ball.vx > 0 ? 'p2' : 'p1'].offset = (Math.random() < 0.5 ? -1 : 1) * 70;
@@ -460,9 +456,6 @@ function updateDemo(now) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Loop principal
-// ---------------------------------------------------------------------------
 let winnerPreviewEmoji = '🦊';
 
 let lastFrameTime = null;
@@ -483,7 +476,6 @@ function tick(now) {
 function frame(now) {
     if (Assets.ready) {
         if (lastFrameTime === null) lastFrameTime = now;
-        // limita o acúmulo (ex.: aba em segundo plano) para não "teleportar" a bola
         stepAccumulator += Math.min(250, now - lastFrameTime);
         lastFrameTime = now;
         while (stepAccumulator >= STEP_MS) {
@@ -515,16 +507,12 @@ function backToMenu() {
     startDemo();
 }
 
-// ---------------------------------------------------------------------------
-// Inicialização
-// ---------------------------------------------------------------------------
 $('mute-btn').addEventListener('click', () => {
     Sound.unlock();
     Sound.toggleMute();
     if (!Sound.muted) Sound.startMusic();
     updateMuteButton();
 });
-// a música começa no primeiro gesto do usuário (exigência dos navegadores)
 window.addEventListener('pointerdown', () => { Sound.unlock(); Sound.startMusic(); }, { once: true });
 window.addEventListener('keydown', () => { Sound.unlock(); Sound.startMusic(); }, { once: true });
 

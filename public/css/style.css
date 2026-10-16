@@ -57,7 +57,6 @@ canvas, img { image-rendering: pixelated; image-rendering: crisp-edges; }
 
 #gameCanvas { display: block; position: absolute; inset: 0; touch-action: none; }
 
-/* ---------- telas sobrepostas ---------- */
 .screen {
     position: absolute;
     inset: 0;
@@ -74,7 +73,6 @@ canvas, img { image-rendering: pixelated; image-rendering: crisp-edges; }
 }
 .screen.hidden { opacity: 0; transform: scale(1.03); pointer-events: none; }
 
-/* ---------- elementos pixelados ---------- */
 .px-panel {
     position: relative;
     background: var(--panel);
@@ -150,13 +148,11 @@ kbd {
     box-shadow: 0 3px 0 0 var(--ink), inset 0 -2px 0 rgba(0, 0, 0, 0.35);
 }
 
-/* ---------- carregamento ---------- */
 #loading-screen { background: var(--bg); }
 .loading-title { font-family: 'Press Start 2P', monospace; font-size: 18px; color: var(--gold); }
 .loading-track { width: 320px; height: 20px; background: var(--ink); padding: 4px; }
 #loading-bar { height: 100%; width: 0; background: var(--green); transition: width 0.2s steps(5); }
 
-/* ---------- menu ---------- */
 .logo {
     width: 400px;
     height: 168px;
@@ -217,7 +213,6 @@ kbd {
 
 .hint { font-size: 20px; color: var(--muted); text-shadow: 2px 2px 0 var(--ink); }
 
-/* ---------- espera ---------- */
 .px-title {
     font-family: 'Press Start 2P', monospace;
     font-size: 22px;
@@ -233,7 +228,6 @@ kbd {
 .dots span:nth-child(3) { animation-delay: 0.6s; }
 @keyframes dot { 0%, 66% { opacity: 0.25; } 33% { opacity: 1; } }
 
-/* ---------- fim de jogo ---------- */
 #game-over-screen { gap: 10px; }
 #winner-title {
     font-family: 'Press Start 2P', monospace;
@@ -250,7 +244,6 @@ kbd {
 #final-score .p2 { color: var(--pink); }
 #final-score .dash { color: var(--muted); }
 
-/* ---------- avisos ---------- */
 #connection-banner, #toast {
     position: absolute;
     left: 50%;

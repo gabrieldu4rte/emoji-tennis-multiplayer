@@ -1,4 +1,3 @@
-// Carregamento dos assets gerados por tools/generate-assets.js e helpers de desenho
 const Assets = {
     manifest: null,
     images: {},
@@ -27,7 +26,6 @@ const Assets = {
     },
     charInfo(emoji) { return this.manifest.characters.list[this.charIndex(emoji)]; },
 
-    // desenha o personagem com os pés em (x, feetY); flip espelha para olhar à esquerda
     drawCharacter(ctx, emoji, pose, x, feetY, scale = 3, flip = false) {
         const m = this.manifest.characters;
         const img = this.images.characters;
@@ -62,7 +60,6 @@ const Assets = {
         ctx.drawImage(img, f * m.size, 0, m.size, m.size, Math.round(x), Math.round(y), m.size * scale, m.size * scale);
     },
 
-    // desenha um frame da folha de efeitos centralizado em (x, y)
     drawFx(ctx, frame, x, y, scale = 3, flip = false) {
         const s = this.manifest.fx.size;
         const img = this.images.fx;
@@ -81,7 +78,6 @@ const Assets = {
         ctx.drawImage(img, r[0], r[1], r[2], r[3], Math.round(x), Math.round(y), r[2] * scale, r[3] * scale);
     },
 
-    // ---- texto com a fonte bitmap ----
     _fontFor(color) {
         if (this._tinted[color]) return this._tinted[color];
         const src = this.images.font;
@@ -102,7 +98,6 @@ const Assets = {
         return [...String(text)].length * f.cellW * scale - scale;
     },
 
-    // opts: scale, color, align ('left'|'center'|'right'), outline (cor), shadow (cor)
     text(ctx, text, x, y, opts = {}) {
         if (!this.images.font) return;
         const f = this.manifest.font;
@@ -113,7 +108,6 @@ const Assets = {
         if (opts.align === 'center') x0 = x - w / 2;
         else if (opts.align === 'right') x0 = x - w;
         x0 = Math.round(x0);
-        // y é o topo da letra maiúscula (sem acento)
         const y0 = Math.round(y - f.top * scale);
         const draw = (color, dx, dy) => {
             const sheet = this._fontFor(color);

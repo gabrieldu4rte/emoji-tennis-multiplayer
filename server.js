@@ -131,7 +131,6 @@ io.on('connection', (socket) => {
 
     socket.on('sync_ball', ({ roomId, x, y, p1Score, p2Score }) => {
         const room = rooms[roomId];
-        // apenas a autoridade da física (p1) pode ditar a posição da bola e o placar
         if (!room || room.p1 !== socket.id) return;
         if ([x, y, p1Score, p2Score].some(v => typeof v !== 'number' || Number.isNaN(v))) return;
 
@@ -188,7 +187,6 @@ io.on('connection', (socket) => {
 
         const otherRole = role === 'p1' ? 'p2' : 'p1';
         if (!room[otherRole]) {
-            // ambos os jogadores já saíram, não há ninguém para aguardar reconexão
             clearTimeout(room.removalTimer);
             delete rooms[roomId];
             return;

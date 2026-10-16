@@ -1,21 +1,10 @@
 'use strict';
-/*
- * Gerador procedural de todos os assets do jogo: sprites em pixel art,
- * cenários, fonte bitmap, efeitos, interface e áudio (SFX + música chiptune).
- *
- * Não usa nenhuma dependência externa: os PNGs e WAVs são codificados aqui
- * mesmo. A saída vai para public/assets/ e é versionada, então o deploy
- * (Render) não precisa rodar este script. Para regenerar: `npm run assets`.
- */
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
 const OUT = path.join(__dirname, '..', 'public', 'assets');
 
-// ---------------------------------------------------------------------------
-// Utilidades de cor e RNG
-// ---------------------------------------------------------------------------
 function hex(h, a = 255) {
     const n = parseInt(h.slice(1), 16);
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255, a];
@@ -45,9 +34,6 @@ function rng(seed) {
     };
 }
 
-// ---------------------------------------------------------------------------
-// Imagem RGBA mínima
-// ---------------------------------------------------------------------------
 class Img {
     constructor(w, h) {
         this.w = w;
@@ -67,7 +53,6 @@ class Img {
         const i = (y * this.w + x) * 4, d = this.data;
         d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = c[3] === undefined ? 255 : c[3];
     }
-    // desenha com alpha blending
     set(x, y, c) {
         x = Math.floor(x); y = Math.floor(y);
         if (!c || !this.inside(x, y)) return;
@@ -101,7 +86,6 @@ class Img {
     }
 }
 
-// contorno de 1px ao redor de todos os pixels opacos
 function outline(img, color = INK, diagonal = false) {
     const src = img.clone();
     const dirs = diagonal
@@ -113,7 +97,6 @@ function outline(img, color = INK, diagonal = false) {
     }
 }
 
-// sombreamento procedural: borda inferior/direita mais escura, superior/esquerda mais clara
 function autoShade(img, amount = 0.3) {
     const src = img.clone();
     for (let y = 0; y < img.h; y++) for (let x = 0; x < img.w; x++) {
@@ -134,9 +117,6 @@ function ellipse(img, cx, cy, rx, ry, fn) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Codificador PNG (RGBA 8 bits, filtro 0)
-// ---------------------------------------------------------------------------
 const CRC_TABLE = (() => {
     const t = new Uint32Array(256);
     for (let n = 0; n < 256; n++) {
@@ -182,9 +162,6 @@ function savePNG(name, img) {
     console.log(`  ${name.padEnd(22)} ${img.w}x${img.h}`);
 }
 
-// ---------------------------------------------------------------------------
-// Fonte bitmap 5x7 (com espaço para acentos e cedilha)
-// ---------------------------------------------------------------------------
 const GLYPHS = {
     '0': ['.###.', '#...#', '#..##', '#.#.#', '##..#', '#...#', '.###.'],
     '1': ['..#..', '.##..', '..#..', '..#..', '..#..', '..#..', '.###.'],
@@ -251,7 +228,6 @@ const FONT_CHARS = Object.keys(GLYPHS).join('') + Object.keys(ACCENTED).join('')
 const FONT_CELL_W = 6, FONT_CELL_H = 10, FONT_TOP = 2;
 
 function glyphRows(ch) {
-    // retorna 10 linhas (2 de acento + 7 de glifo + 1 de descendente)
     const rows = Array(FONT_CELL_H).fill('.....');
     let base = GLYPHS[ch], accent = null, cedilla = false;
     if (!base && ACCENTED[ch]) {
@@ -276,7 +252,6 @@ function buildFont() {
     return img;
 }
 
-// desenha texto com a fonte bitmap dentro de uma imagem (usado em logo/placas)
 function textMask(text, scale = 1) {
     const chars = [...text];
     const w = chars.length * FONT_CELL_W * scale - scale;
@@ -301,15 +276,10 @@ function drawText(img, text, x, y, color, scale = 1) {
 }
 const textWidth = (text, scale = 1) => [...text].length * FONT_CELL_W * scale - scale;
 
-// ---------------------------------------------------------------------------
-// Personagens
-// ---------------------------------------------------------------------------
 const CHAR_W = 28, CHAR_H = 23;
 const CHAR_ANCHOR_X = 12, CHAR_FEET_Y = 20;
 const POSES = ['idle', 'blink', 'run1', 'run2', 'swing', 'cheer'];
 
-// Cabeças 12x10. Letras são chaves da paleta do personagem; '.' é transparente.
-// E = olho que pisca, F = olho escuro que não pisca, w = branco, N = nariz, M = boca
 const CHARACTERS = [
     {
         emoji: '🦊', id: 'fox', name: 'Raposa', shirt: '#3b7bff', shorts: '#f4f4ff', racket: '#ff3b5c',
@@ -560,14 +530,12 @@ function buildCharacterFrame(ch, pose) {
     const legsKey = pose === 'blink' ? 'idle' : pose;
     const L = LEGS[legsKey];
 
-    // braço de trás
     if (pose === 'cheer') img.pixels([[7, 11], [6, 10], [5, 9], [5, 8]], P.limb);
     else if (pose === 'swing') img.pixels([[7, 12], [6, 13], [5, 14]], P.limb);
     else if (pose === 'run1') img.pixels([[7, 12], [7, 13], [8, 14]], P.limb);
     else img.pixels([[7, 12], [7, 13], [7, 14]], P.limb);
 
     if (ch.ghost) {
-        // fantasma flutua: cauda ondulada no lugar das pernas
         img.rect(8, 15, 8, 2, P.A);
         const phase = pose === 'run1' || pose === 'cheer' ? 1 : 0;
         for (let x = 8; x < 16; x++) if ((x + phase) % 3 !== 0) img.put(x, 17, P.A);
@@ -583,7 +551,6 @@ function buildCharacterFrame(ch, pose) {
         img.put(12, 16, darken(P.shorts, 0.35));
     }
 
-    // camisa com ombros, faixa e gola
     img.rect(8, 11, 8, 4, P.shirt);
     img.put(7, 11, P.shirt);
     img.put(16, 11, P.shirt);
@@ -594,7 +561,6 @@ function buildCharacterFrame(ch, pose) {
     paintHead(img, ch, P, 6, 1, pose === 'blink');
     autoShade(img, 0.28);
 
-    // braço da frente + raquete
     if (pose === 'swing') {
         img.pixels([[16, 12], [17, 12], [18, 12]], P.limb);
         img.put(19, 12, darken(P.limb, 0.15));
@@ -633,9 +599,6 @@ function buildCharacters() {
     return { sheet, portraits };
 }
 
-// ---------------------------------------------------------------------------
-// Bola de tênis (frames de rotação)
-// ---------------------------------------------------------------------------
 function buildBallFrame(size, angle) {
     const img = new Img(size, size);
     const R = size / 2;
@@ -652,7 +615,6 @@ function buildBallFrame(size, angle) {
         const nz = Math.sqrt(Math.max(0, 1 - u * u - v * v));
         const lambert = u * L[0] + v * L[1] + nz * L[2];
         let c = lambert > 0.72 ? light : lambert > 0.3 ? mid : dark;
-        // costura da bola: curva em S rotacionando em torno do eixo vertical
         const px = u * ca + nz * sa;
         const pz = -u * sa + nz * ca;
         const g = v - 0.62 * Math.sin(Math.atan2(pz, px) * 2);
@@ -667,9 +629,6 @@ function buildBallSheet(size, frames) {
     return sheet;
 }
 
-// ---------------------------------------------------------------------------
-// Efeitos (frames 16x16)
-// ---------------------------------------------------------------------------
 function buildFx() {
     const S = 16, frames = [];
     const white = hex('#ffffff'), yellow = hex('#fff27a'), orange = hex('#ffb347');
@@ -681,14 +640,12 @@ function buildFx() {
         }
         return img;
     };
-    // 0-3: anel de impacto
     const r0 = new Img(S, S);
     ellipse(r0, 8, 8, 3.5, 3.5, (x, y) => r0.put(x, y, white));
     frames.push(r0);
     frames.push(ring(5.5, 2, white));
     frames.push(ring(7, 1.2, yellow));
     frames.push(ring(7.8, 1, orange, true));
-    // 4: estrela grande, 5: estrela pequena
     const star = (len) => {
         const img = new Img(S, S);
         img.rect(7, 7, 2, 2, white);
@@ -702,7 +659,6 @@ function buildFx() {
     };
     frames.push(star(5));
     frames.push(star(2));
-    // 6-8: nuvem de poeira
     const dust = hex('#f4ead6'), dustDark = hex('#cbbd9e');
     [[3, 0], [4.5, 1], [5.5, 2]].forEach(([r, stage]) => {
         const img = new Img(S, S);
@@ -716,7 +672,6 @@ function buildFx() {
         }
         frames.push(img);
     });
-    // 9-10: arco de swing (golpe da raquete)
     [0, 1].forEach(stage => {
         const img = new Img(S, S);
         for (let a = -1.25; a <= 1.25; a += 0.04) {
@@ -729,7 +684,6 @@ function buildFx() {
         }
         frames.push(img);
     });
-    // 11: coração (vitória) / 12: gota de suor
     const heart = new Img(S, S);
     ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'].forEach((r, y) =>
         [...r].forEach((p, x) => { if (p === '#') heart.put(x + 4, y + 5, hex('#ff4f7b')); }));
@@ -754,13 +708,9 @@ function buildFx() {
     };
 }
 
-// ---------------------------------------------------------------------------
-// Interface: placar, pips, seta, ícones de som
-// ---------------------------------------------------------------------------
 function buildUI() {
     const img = new Img(128, 48);
     const meta = {};
-    // placar 104x22
     const sb = new Img(104, 22);
     const gold = hex('#ffd447'), goldDark = hex('#c98a1a'), panel = hex('#1d1840'), panelLight = hex('#2c2560');
     const led = hex('#08060f'), slot = hex('#120e2a');
@@ -770,16 +720,12 @@ function buildUI() {
     sb.rect(1, 1, 1, 19, gold);
     sb.rect(2, 2, 100, 18, panel);
     sb.rect(2, 2, 100, 1, panelLight);
-    // parafusos
     for (const [x, y] of [[3, 3], [100, 3], [3, 18], [100, 18]]) { sb.put(x, y, gold); }
-    // slots dos retratos
     sb.rect(5, 3, 18, 16, slot); sb.rect(5, 18, 18, 1, panelLight);
     sb.rect(81, 3, 18, 16, slot); sb.rect(81, 18, 18, 1, panelLight);
-    // displays de LED
     sb.rect(26, 3, 20, 12, led); sb.rect(58, 3, 20, 12, led);
     for (let x = 26; x < 46; x += 2) sb.put(x, 3, hex('#14102a'));
     for (let x = 58; x < 78; x += 2) sb.put(x, 3, hex('#14102a'));
-    // "VS" central
     drawText(sb, '-', 49, 6, gold);
     img.blit(sb, 0, 0);
     meta.scoreboard = [0, 0, 104, 22];
@@ -790,7 +736,6 @@ function buildUI() {
     meta.pipsLeft = [27, 16];
     meta.pipsRight = [59, 16];
 
-    // pips de ponto 3x3 (aceso/apagado)
     const pipOn = [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]];
     img.rect(0, 24, 3, 3, hex('#4a3a1a'));
     img.pixels(pipOn, gold); img.put(1, 25, hex('#fff8c8'));
@@ -799,7 +744,6 @@ function buildUI() {
     img.put(5, 25, hex('#3a3470'));
     meta.pipOff = [4, 24, 3, 3];
 
-    // seta "VOCÊ" 7x6
     const arrow = new Img(7, 6);
     ['#####', '#####', '.###.', '..#..'].forEach((r, y) =>
         [...r].forEach((p, x) => { if (p === '#') arrow.put(x + 1, y + 1, hex('#ffffff')); }));
@@ -807,7 +751,6 @@ function buildUI() {
     img.blit(arrow, 8, 24);
     meta.arrow = [8, 24, 7, 6];
 
-    // ícones de som 11x9
     const speaker = (on) => {
         const s = new Img(11, 9);
         const c = hex('#f4f0ff');
@@ -828,9 +771,6 @@ function buildUI() {
     return { img, meta };
 }
 
-// ---------------------------------------------------------------------------
-// Cenários (arenas) 240x150, desenhados em 4x no jogo (960x600)
-// ---------------------------------------------------------------------------
 const AW = 240, AH = 150;
 const FIELD = { x: 20, y: 20, w: 200, h: 125 };
 
@@ -866,7 +806,6 @@ const ARENAS = [
     }
 ];
 
-// posições do público (usadas tanto para cadeiras quanto para a camada animada)
 function crowdSeats() {
     const seats = [];
     for (const y of [1, 6]) for (let x = 1; x < AW - 3; x += 4) seats.push([x, y]);
@@ -881,7 +820,6 @@ function buildArena(cfg) {
     const C = k => hex(cfg[k]);
     const [s0, s1, s2] = cfg.stands.map(c => hex(c));
 
-    // arquibancadas: faixas de degraus
     for (let y = 0; y < AH; y++) for (let x = 0; x < AW; x++) {
         let c;
         if (y <= 10) c = y % 5 === 4 ? s2 : (y < 5 ? s1 : s0);
@@ -891,17 +829,13 @@ function buildArena(cfg) {
         if (r() < 0.06) c = darken(c, 0.15);
         img.put(x, y, c);
     }
-    // corredores/escadas
     for (let x = 30; x < AW - 20; x += 48) {
         for (let y = 0; y <= 10; y++) { img.put(x, y, s2); img.put(x + 1, y, y % 2 ? s2 : s1); }
     }
-    // cadeiras vazias
     const seat = C('seat');
     for (const [x, y] of crowdSeats()) { img.rect(x, y + 1, 3, 2, seat); img.put(x + 1, y + 1, lighten(seat, 0.15)); }
-    // grade da arquibancada superior
     img.rect(0, 10, AW, 1, darken(s2, 0.3));
 
-    // placas de publicidade (topo)
     const adBg = C('adBg');
     img.rect(16, 11, 208, 9, adBg);
     img.rect(16, 11, 208, 1, lighten(adBg, 0.25));
@@ -911,7 +845,6 @@ function buildArena(cfg) {
     drawText(img, adL, 50 - Math.floor(textWidth(adL) / 2), 12, C('adText'));
     drawText(img, adR, 190 - Math.floor(textWidth(adR) / 2), 12, C('adText2'));
 
-    // muretas laterais e inferior
     const wall = C('wall'), wallLight = C('wallLight');
     for (const wx of [16, 220]) {
         img.rect(wx, 11, 4, AH - 11, wall);
@@ -925,7 +858,6 @@ function buildArena(cfg) {
     img.rect(16, 145, 208, 1, lighten(wall, 0.25));
     for (let x = 22; x < 220; x += 14) img.rect(x, 147, 8, 1, wallLight);
 
-    // superfície da quadra
     const surf = cfg.surface.map(c => hex(c));
     const noise = C('noise');
     const apron = cfg.apron ? cfg.apron.map(c => hex(c)) : null;
@@ -941,7 +873,6 @@ function buildArena(cfg) {
         img.put(x, y, c);
     }
 
-    // desgaste da grama perto das linhas de fundo
     if (cfg.wear) {
         const wear = C('wear');
         for (const cx of [32, 207]) {
@@ -951,7 +882,6 @@ function buildArena(cfg) {
             }
         }
     }
-    // marcas de deslizamento no saibro
     if (cfg.id === 'clay') {
         for (let i = 0; i < 40; i++) {
             const x0 = 24 + Math.floor(r() * 190), y0 = 24 + Math.floor(r() * 115);
@@ -960,17 +890,16 @@ function buildArena(cfg) {
         }
     }
 
-    // linhas da quadra (vista de cima, rede vertical no centro)
     const line = C('line');
     const lines = [];
     const hline = (y, x0, x1) => { for (let x = x0; x <= x1; x++) lines.push([x, y]); };
     const vline = (x, y0, y1) => { for (let y = y0; y <= y1; y++) lines.push([x, y]); };
-    hline(24, 26, 213); hline(140, 26, 213);      // laterais de duplas
-    hline(38, 26, 213); hline(126, 26, 213);      // laterais de simples
-    vline(26, 24, 140); vline(213, 24, 140);      // linhas de fundo
-    vline(69, 38, 126); vline(171, 38, 126);      // linhas de saque
-    hline(82, 69, 171);                            // linha central de saque
-    hline(82, 27, 29); hline(82, 210, 212);        // marcas centrais
+    hline(24, 26, 213); hline(140, 26, 213);
+    hline(38, 26, 213); hline(126, 26, 213);
+    vline(26, 24, 140); vline(213, 24, 140);
+    vline(69, 38, 126); vline(171, 38, 126);
+    hline(82, 69, 171);
+    hline(82, 27, 29); hline(82, 210, 212);
     if (cfg.lineGlow) {
         const glow = C('lineGlow');
         for (const [x, y] of lines) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
@@ -984,22 +913,18 @@ function buildArena(cfg) {
         img.put(x, y, c);
     }
 
-    // sombra da rede
     for (let y = 23; y <= 143; y++) for (const x of [121, 122]) img.put(x, y, darken(img.get(x, y), x === 121 ? 0.35 : 0.2));
-    // rede: fita branca + malha
     const tape = hex('#f8f8f8'), mesh = hex('#2a2a36'), meshLight = hex('#6a6a7a');
     for (let y = 21; y <= 143; y++) {
         img.put(119, y, y % 6 === 0 ? hex('#d8d8e0') : tape);
         img.put(120, y, y % 2 === 0 ? mesh : meshLight);
     }
-    // postes
     const post = hex('#3a3a48'), postLight = hex('#9a9aae');
     for (const py of [19, 143]) {
         img.rect(118, py, 4, 3, post);
         img.rect(118, py, 4, 1, postLight);
     }
 
-    // torres de iluminação (noturno) nos cantos
     if (cfg.night) {
         for (const [lx, ly] of [[4, 2], [232, 2]]) {
             img.rect(lx, ly, 5, 3, hex('#3a3550'));
@@ -1057,7 +982,6 @@ function buildClouds() {
     return img;
 }
 
-// fundo da página: céu estrelado pixelado, tileável 64x64
 function buildBgTile() {
     const img = new Img(64, 64);
     const r = rng(5);
@@ -1074,7 +998,6 @@ function buildBgTile() {
     return img;
 }
 
-// logo do jogo
 function buildLogo() {
     const s = 2;
     const top = 'EMOJI', bottom = 'TENNIS';
@@ -1093,12 +1016,10 @@ function buildLogo() {
     };
     const endTop = place(top, 3);
     place(bottom, 22);
-    // brilho na parte de cima de cada letra
     const shine = letters.clone();
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
         if (shine.a(x, y) && !shine.a(x, y - 1)) letters.put(x, y, lighten(letters.get(x, y), 0.6));
     }
-    // sombra projetada
     const shadow = new Img(w, h);
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (letters.a(x, y)) {
         shadow.put(x + 2, y + 2, hex('#3a1a6a'));
@@ -1108,7 +1029,6 @@ function buildLogo() {
     outline(shadow, INK);
     img.blit(shadow, 0, 0);
     img.blit(letters, 0, 0);
-    // bolinha com rastro ao lado de "EMOJI"
     const ball = buildBallFrame(14, 0.6);
     const bx = endTop + 4, by = 2;
     for (let i = 0; i < 3; i++) img.rect(bx - 6 - i * 4, by + 5 + i, 3, 1, hex('#fff27a', 200 - i * 60));
@@ -1116,9 +1036,6 @@ function buildLogo() {
     return img;
 }
 
-// ---------------------------------------------------------------------------
-// Áudio: sintetizador chiptune simples -> WAV 16 bits mono
-// ---------------------------------------------------------------------------
 const SR = 22050;
 function encodeWAV(samples) {
     const buf = Buffer.alloc(44 + samples.length * 2);
@@ -1277,24 +1194,20 @@ function buildMusic() {
     ];
     chords.forEach(([root, triad], bi) => {
         const t0 = bi * bar;
-        // baixo: oitavas em colcheias
         for (let i = 0; i < 8; i++) {
             const f = noteFreq(root) * (i % 2 ? 2 : 1);
             tone(buf, t0 + i * eighth, eighth * 0.9, { type: 'tri', f0: f, vol: 0.38, release: 0.3 });
         }
-        // arpejo em semicolcheias, bem baixinho
         for (let i = 0; i < 16; i++) {
             const n = triad[i % 3];
             tone(buf, t0 + i * eighth / 2, eighth / 2 * 0.8, { f0: noteFreq(n) * 2, duty: 0.125, vol: 0.06, release: 0.5 });
         }
-        // bateria: bumbo, caixa e chimbal
         for (let i = 0; i < 8; i++) {
             const t = t0 + i * eighth;
             if (i % 4 === 0) tone(buf, t, 0.12, { type: 'sine', f0: 150, f1: 45, vol: 0.7, release: 0.9 });
             if (i % 4 === 2) noise(buf, t, 0.12, { vol: 0.28, lp: 0.7, seed: 100 + bi * 8 + i });
             noise(buf, t, 0.03, { vol: 0.08, lp: 0.95, seed: 200 + bi * 8 + i });
         }
-        // melodia
         const tokens = melody[bi].split(' ');
         tokens.forEach((tok, i) => {
             if (tok === '-' || tok === '.') return;
@@ -1308,9 +1221,6 @@ function buildMusic() {
     return buf;
 }
 
-// ---------------------------------------------------------------------------
-// Main
-// ---------------------------------------------------------------------------
 function main() {
     fs.mkdirSync(path.join(OUT, 'sfx'), { recursive: true });
     console.log('Gerando imagens...');

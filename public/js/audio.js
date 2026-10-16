@@ -1,6 +1,3 @@
-// Áudio: toca os WAVs gerados (SFX + música) via Web Audio API.
-// Os eventos de som continuam trafegando pela rede no mesmo formato de antes
-// ({ freq, type, duration }); aqui eles são traduzidos para os samples.
 const NET_SOUNDS = {
     wall: { freq: 300, type: 'sine', duration: 0.08 },
     hit: { freq: 450, type: 'triangle', duration: 0.12 },
@@ -49,12 +46,11 @@ const Sound = {
             try {
                 const data = await fetch('assets/' + file).then(r => r.arrayBuffer());
                 this.buffers[name] = await new Promise((res, rej) => this.ctx.decodeAudioData(data, res, rej));
-            } catch (e) { /* sem o sample, usamos o oscilador como fallback */ }
+            } catch (e) { }
         }));
         if (this.musicWanted) this.startMusic();
     },
 
-    // navegadores só liberam o áudio após um gesto do usuário
     unlock() {
         this.init();
         if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
@@ -74,7 +70,6 @@ const Sound = {
         return true;
     },
 
-    // fallback com oscilador (comportamento original do jogo)
     beep(freq, type = 'sine', duration = 0.1) {
         this.init();
         if (!this.ctx) return;

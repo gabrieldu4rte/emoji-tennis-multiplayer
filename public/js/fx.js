@@ -1,5 +1,4 @@
-// Sistema de partículas e efeitos visuais (puramente cosmético, não afeta a física)
-const PX = 3; // tamanho do "pixel" das partículas, alinhado com os sprites
+const PX = 3;
 
 const FX = {
     particles: [],
@@ -39,7 +38,6 @@ const FX = {
         this.flashAlpha = alpha;
     },
 
-    // partícula quadrada simples
     add(p) {
         this.particles.push(Object.assign({
             x: 0, y: 0, vx: 0, vy: 0, g: 0, drag: 0.98, life: 30, max: 30,
@@ -75,12 +73,10 @@ const FX = {
         }
     },
 
-    // sprite animado da folha fx.png
     sprite(x, y, frames, { frameTime = 4, scale = 3, flip = false, vy = 0 } = {}) {
         this.sprites.push({ x, y, frames: Array.isArray(frames) ? frames : [frames], t: 0, frameTime, scale, flip, vy });
     },
 
-    // texto flutuante com a fonte bitmap
     popup(text, x, y, { color = '#ffffff', scale = 3, life = 50, vy = -1.2 } = {}) {
         this.popups.push({ text, x, y, color, scale, life, max: life, vy });
     },
